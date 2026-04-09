@@ -18,10 +18,11 @@ def home():
     conn = get_connection()
     cur = conn.cursor()
 
-    # varmista että taulu on olemassa
+    # varmista että taulu on olemassa (uusi rakenne)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS weather (
             id SERIAL PRIMARY KEY,
+            location TEXT,
             temp FLOAT,
             wind FLOAT,
             time TEXT
@@ -29,42 +30,56 @@ def home():
     """)
 
     # hae data
-    cur.execute("SELECT temp, wind, time FROM weather ORDER BY id DESC LIMIT 10")
+    cur.execute("""
+        SELECT location, temp, wind, time
+        FROM weather
+        ORDER BY id DESC
+        LIMIT 20
+    """)
     rows = cur.fetchall()
-
-    converted_rows = []
-
-    for r in rows:
-        try:
-            dt = datetime.fromisoformat(r[2])
-            dt = dt + timedelta(hours=3) 
-            formatted = dt.strftime("%d.%m.%Y %H:%M")
-        except:
-            formatted = r[2]
-
-        converted_rows.append((r[0], r[1], formatted))
 
     cur.close()
     conn.close()
 
-    latest = converted_rows[0] if converted_rows else (None, None, None)
+    # groupataan locationin mukaan
+    data_by_location = {}
+
+    for r in rows:
+        location = r[0]
+
+        try:
+            dt = datetime.fromisoformat(r[3])
+            dt = dt + timedelta(hours=3)
+            formatted_time = dt.strftime("%d.%m.%Y %H:%M")
+        except:
+            formatted_time = r[3]
+
+        entry = (r[1], r[2], formatted_time)
+
+        if location not in data_by_location:
+            data_by_location[location] = []
+
+        data_by_location[location].append(entry)
 
     return render_template_string(
         """
-        <h1>🌤 Weather in Oulu</h1>
+        <h1>🌤 Weather</h1>
 
-        <h2>Latest</h2>
-        <p>{{ latest[0] }} °C, wind {{ latest[1] }} m/s</p>
+        {% for loc, items in data.items() %}
+            <h2>{{ loc }}</h2>
 
-        <h2>History</h2>
-        <ul>
-        {% for r in history %}
-            <li>{{ r[2] }} → {{ r[0] }}°C</li>
+            <h3>Latest</h3>
+            <p>{{ items[0][0] }} °C, wind {{ items[0][1] }} m/s</p>
+
+            <h3>History</h3>
+            <ul>
+            {% for r in items %}
+                <li>{{ r[2] }} → {{ r[0] }}°C</li>
+            {% endfor %}
+            </ul>
         {% endfor %}
-        </ul>
         """,
-        latest=latest,
-        history=converted_rows,
+        data=data_by_location
     )
 
 if __name__ == "__main__":
