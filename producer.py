@@ -11,50 +11,65 @@ def get_connection():
         password=os.getenv("DB_PASSWORD", "rahtitest")
     )
 
+locations = [
+    ("Oulu", 65.01, 25.47),
+    ("Lapinaho", 65.89532, 28.30994),
+]
+
 while True:
-    url = "https://api.open-meteo.com/v1/forecast?latitude=65.01&longitude=25.47&current_weather=true"
-
-    try:
-        response = requests.get(url, timeout=5)
-        data = response.json()
-    except Exception as e:
-        print("API error:", e)
-        time.sleep(5)
-        continue
-
-    weather = data.get("current_weather", {})
-
-    entry = (
-        weather.get("temperature"),
-        weather.get("windspeed"),
-        weather.get("time"),
-    )
 
     conn = get_connection()
     cur = conn.cursor()
 
+    # päivitä taulu (lisää location!)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS weather (
             id SERIAL PRIMARY KEY,
+            location TEXT,
             temp FLOAT,
             wind FLOAT,
             time TEXT
         )
     """)
 
-    # hae viimeisin timestamp
-    cur.execute("SELECT time FROM weather ORDER BY id DESC LIMIT 1")
-    last = cur.fetchone()
+    # LOOPPI KAIKILLE SIJAINNEILLE
+    for location_name, lat, lon in locations:
 
-    if last and last[0] == entry[2]:
-        print("Duplicate, skipping")
-    else:
-        cur.execute(
-            "INSERT INTO weather (temp, wind, time) VALUES (%s, %s, %s)",
-            entry
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
+
+        try:
+            response = requests.get(url, timeout=5)
+            data = response.json()
+        except Exception as e:
+            print("API error:", e)
+            continue
+
+        weather = data.get("current_weather", {})
+
+        entry = (
+            location_name,
+            weather.get("temperature"),
+            weather.get("windspeed"),
+            weather.get("time"),
         )
-        conn.commit()
-        print("Inserted:", entry)
+
+        # tarkista duplikaatti PER LOCATION
+        cur.execute("""
+            SELECT time FROM weather
+            WHERE location = %s
+            ORDER BY id DESC LIMIT 1
+        """, (location_name,))
+        last = cur.fetchone()
+
+        if last and last[0] == entry[3]:
+            print(f"{location_name}: Duplicate, skipping")
+        else:
+            cur.execute(
+                "INSERT INTO weather (location, temp, wind, time) VALUES (%s, %s, %s, %s)",
+                entry
+            )
+            conn.commit()
+            print("Inserted:", entry)
 
     cur.close()
     conn.close()
