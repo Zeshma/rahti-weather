@@ -3,6 +3,7 @@ import psycopg2
 import os
 import time
 
+
 def get_connection():
     return psycopg2.connect(
         host=os.getenv("DB_HOST", "localhost"),
@@ -11,49 +12,72 @@ def get_connection():
         password=os.getenv("DB_PASSWORD", "rahtitest")
     )
 
+
+# init DB (tehdään vain kerran)
+conn = get_connection()
+cur = conn.cursor()
+cur.execute("""
+    CREATE TABLE IF NOT EXISTS weather (
+        id SERIAL PRIMARY KEY,
+        location TEXT,
+        temp FLOAT,
+        wind FLOAT,
+        time TEXT
+    )
+""")
+conn.commit()
+cur.close()
+conn.close()
+
+
 locations = [
     ("Oulu", 65.01, 25.47),
     ("Lapinaho", 65.89532, 28.30994),
 ]
+
 
 while True:
 
     conn = get_connection()
     cur = conn.cursor()
 
-    # päivitä taulu (lisää location!)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS weather (
-            id SERIAL PRIMARY KEY,
-            location TEXT,
-            temp FLOAT,
-            wind FLOAT,
-            time TEXT
-        )
-    """)
-
-    # LOOPPI KAIKILLE SIJAINNEILLE
     for location_name, lat, lon in locations:
 
-        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
+        url = (
+            f"https://api.open-meteo.com/v1/forecast"
+            f"?latitude={lat}&longitude={lon}"
+            f"&hourly=temperature_2m,windspeed_10m"
+            f"&timezone=auto"
+        )
 
         try:
             response = requests.get(url, timeout=5)
-            data = response.json()
-        except Exception as e:
-            print("API error:", e)
-            continue
 
-        weather = data.get("current_weather", {})
+            if response.status_code != 200:
+                print("HTTP ERROR:", response.status_code)
+                continue
+
+            data = response.json()
+
+            # ota viimeisin datapiste
+            weather = {
+                "temperature": data["hourly"]["temperature_2m"][-1],
+                "windspeed": data["hourly"]["windspeed_10m"][-1],
+                "time": data["hourly"]["time"][-1],
+            }
+
+        except Exception as e:
+            print("API/PARSE ERROR:", e)
+            continue
 
         entry = (
             location_name,
-            weather.get("temperature"),
-            weather.get("windspeed"),
-            weather.get("time"),
+            weather["temperature"],
+            weather["windspeed"],
+            weather["time"],
         )
 
-        # tarkista duplikaatti PER LOCATION
+        # tarkista duplikaatti
         cur.execute("""
             SELECT time FROM weather
             WHERE location = %s
