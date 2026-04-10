@@ -98,4 +98,4 @@ while True:
     cur.close()
     conn.close()
 
-    time.sleep(300)
+    time.sleep(300)  # odota 5 minuuttia ennen seuraavaa päivitystä
