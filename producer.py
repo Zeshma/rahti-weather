@@ -98,4 +98,4 @@ while True:
     cur.close()
     conn.close()
 
-    time.sleep(10)
+    time.sleep(300)
