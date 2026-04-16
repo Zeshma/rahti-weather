@@ -1,17 +1,12 @@
+from kafka import KafkaProducer
+import json
 import requests
-import psycopg2
-import os
 import time
 
-#Tämä on toimiva versio
-
-def get_connection():
-    return psycopg2.connect(
-        host=os.getenv("DB_HOST", "localhost"),
-        database=os.getenv("DB_NAME", "weather"),
-        user=os.getenv("DB_USER", "rahtitest"),
-        password=os.getenv("DB_PASSWORD", "rahtitest")
-    )
+producer = KafkaProducer(
+    bootstrap_servers=os.getenv("KAFKA_BOOTSTRAP", "my-cluster-kafka-bootstrap:9092"),
+    value_serializer=lambda v: json.dumps(v).encode("utf-8")
+)
 
 locations = [
     ("Oulu", 65.01, 25.47),
@@ -19,22 +14,6 @@ locations = [
 ]
 
 while True:
-
-    conn = get_connection()
-    cur = conn.cursor()
-
-    # päivitä taulu (lisää location!)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS weather (
-            id SERIAL PRIMARY KEY,
-            location TEXT,
-            temp FLOAT,
-            wind FLOAT,
-            time TEXT
-        )
-    """)
-
-    # LOOPPI KAIKILLE SIJAINNEILLE
     for location_name, lat, lon in locations:
 
         url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
@@ -48,32 +27,14 @@ while True:
 
         weather = data.get("current_weather", {})
 
-        entry = (
-            location_name,
-            weather.get("temperature"),
-            weather.get("windspeed"),
-            weather.get("time"),
-        )
+        message = {
+            "location": location_name,
+            "temp": weather.get("temperature"),
+            "wind": weather.get("windspeed"),
+            "time": weather.get("time"),
+        }
 
-        # tarkista duplikaatti PER LOCATION
-        cur.execute("""
-            SELECT time FROM weather
-            WHERE location = %s
-            ORDER BY id DESC LIMIT 1
-        """, (location_name,))
-        last = cur.fetchone()
+        producer.send("weather", message)
+        print("Sent:", message)
 
-        if last and last[0] == entry[3]:
-            print(f"{location_name}: Duplicate, skipping")
-        else:
-            cur.execute(
-                "INSERT INTO weather (location, temp, wind, time) VALUES (%s, %s, %s, %s)",
-                entry
-            )
-            conn.commit()
-            print("Inserted:", entry)
-
-    cur.close()
-    conn.close()
-
-    time.sleep(900)  # 15 min = 900s
+    time.sleep(900)
