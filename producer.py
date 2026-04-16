@@ -2,6 +2,7 @@ from kafka import KafkaProducer
 import json
 import requests
 import time
+import os
 
 producer = KafkaProducer(
     bootstrap_servers=os.getenv("KAFKA_BOOTSTRAP", "my-cluster-kafka-bootstrap:9092"),
