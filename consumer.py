@@ -13,12 +13,13 @@ def get_connection():
 
 consumer = KafkaConsumer(
     "weather",
-    bootstrap_servers=os.getenv("KAFKA_BOOTSTRAP", "my-cluster-kafka-bootstrap:9092"),
+    bootstrap_servers=os.getenv("KAFKA_BOOTSTRAP", "kafka:9092"),
     value_deserializer=lambda x: json.loads(x.decode("utf-8")),
     auto_offset_reset="latest",
     group_id="weather-group"
 )
 
+# luo taulu kerran
 conn = get_connection()
 cur = conn.cursor()
 
@@ -32,19 +33,32 @@ cur.execute("""
     )
 """)
 conn.commit()
+cur.close()
+conn.close()
 
+# lue Kafkaa
 for msg in consumer:
     data = msg.value
 
-    cur.execute("""
-        INSERT INTO weather (location, temp, wind, time)
-        VALUES (%s, %s, %s, %s)
-    """, (
-        data["location"],
-        data["temp"],
-        data["wind"],
-        data["time"]
-    ))
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
 
-    conn.commit()
-    print("Inserted:", data)
+        cur.execute("""
+            INSERT INTO weather (location, temp, wind, time)
+            VALUES (%s, %s, %s, %s)
+        """, (
+            data["location"],
+            data["temp"],
+            data["wind"],
+            data["time"]
+        ))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        print("Inserted:", data)
+
+    except Exception as e:
+        print("DB error:", e)
