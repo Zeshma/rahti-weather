@@ -16,7 +16,8 @@ consumer = KafkaConsumer(
     bootstrap_servers=os.getenv("KAFKA_BOOTSTRAP", "kafka:9092"),
     value_deserializer=lambda x: json.loads(x.decode("utf-8")),
     auto_offset_reset="earliest",
-    group_id="weather-group"
+    enable_auto_commit=True,
+    group_id="weather-group-2"
 )
 
 # luo taulu kerran
