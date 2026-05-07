@@ -1,0 +1,193 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: rahti-weather
+  annotations:
+    description: "Weather monitoring application for OpenShift"
+    tags: "python,flask,kafka,postgresql"
+objects:
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: weather-db-secret
+  stringData:
+    DB_HOST: "${DB_HOST}"
+    DB_NAME: "${DB_NAME}"
+    DB_USER: "${DB_USER}"
+    DB_PASSWORD: "${DB_PASSWORD}"
+    DB_PORT: "${DB_PORT}"
+    KAFKA_BOOTSTRAP: "${KAFKA_BOOTSTRAP}"
+
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    name: rahti-weather
+  spec:
+    lookupPolicy:
+      local: false
+
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: weather-web
+    labels:
+      app: weather
+      component: web
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: weather
+        component: web
+    template:
+      metadata:
+        labels:
+          app: weather
+          component: web
+      spec:
+        containers:
+        - name: web
+          image: "${IMAGE_REGISTRY}/${NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}"
+          ports:
+          - containerPort: 8080
+          envFrom:
+          - secretRef:
+              name: weather-db-secret
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: weather-web
+    labels:
+      app: weather
+      component: web
+  spec:
+    ports:
+    - port: 8080
+      targetPort: 8080
+    selector:
+      app: weather
+      component: web
+
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    name: weather-web
+  spec:
+    to:
+      kind: Service
+      name: weather-web
+    port:
+      targetPort: 8080
+
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: weather-producer
+    labels:
+      app: weather
+      component: producer
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: weather
+        component: producer
+    template:
+      metadata:
+        labels:
+          app: weather
+          component: producer
+      spec:
+        containers:
+        - name: producer
+          image: "${IMAGE_REGISTRY}/${NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}"
+          command: ["python", "producer.py"]
+          envFrom:
+          - secretRef:
+              name: weather-db-secret
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: weather-consumer
+    labels:
+      app: weather
+      component: consumer
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: weather
+        component: consumer
+    template:
+      metadata:
+        labels:
+          app: weather
+          component: consumer
+      spec:
+        containers:
+        - name: consumer
+          image: "${IMAGE_REGISTRY}/${NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}"
+          command: ["python", "consumer.py"]
+          envFrom:
+          - secretRef:
+              name: weather-db-secret
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+
+parameters:
+- name: IMAGE_REGISTRY
+  description: "Container image registry"
+  value: "image-registry.openshift-image-registry.svc:5000"
+  required: true
+- name: IMAGE_NAME
+  description: "Container image name"
+  value: "rahti-weather"
+  required: true
+- name: IMAGE_TAG
+  description: "Container image tag"
+  value: "latest"
+  required: true
+- name: DB_HOST
+  description: "PostgreSQL host"
+  required: true
+- name: DB_NAME
+  description: "PostgreSQL database name"
+  required: true
+- name: DB_USER
+  description: "PostgreSQL username"
+  required: true
+- name: DB_PASSWORD
+  description: "PostgreSQL password"
+  required: true
+- name: KAFKA_BOOTSTRAP
+  description: "Kafka bootstrap servers"
+  required: true
+- name: DB_PORT
+  description: "PostgreSQL port"
+  value: "5432"
+  required: true
+- name: NAMESPACE
+  description: "OpenShift namespace/project"
+  value: "kafka-project"
+  required: true

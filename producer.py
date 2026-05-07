@@ -4,9 +4,14 @@ import requests
 import time
 import os
 
+# Configure Kafka producer with SASL authentication
 producer = KafkaProducer(
-    bootstrap_servers=os.getenv("KAFKA_BOOTSTRAP", "kafka:9092"),
-    value_serializer=lambda v: json.dumps(v).encode("utf-8")
+    bootstrap_servers=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "<kafka-bootstrap-servers>"),
+    value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+    security_protocol="SASL_PLAINTEXT",
+    sasl_mechanism="SCRAM-SHA-256",
+    sasl_plain_username=os.getenv("KAFKA_USERNAME", "<kafka-username>"),
+    sasl_plain_password=os.getenv("KAFKA_PASSWORD", "<kafka-password>")
 )
 
 locations = [
@@ -15,7 +20,9 @@ locations = [
 ]
 
 while True:
+    print(f"Producer loop started at {time.time()}", flush=True)
     for location_name, lat, lon in locations:
+        print(f"Processing {location_name}...", flush=True)
 
         url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
 
@@ -23,7 +30,7 @@ while True:
             response = requests.get(url, timeout=5)
             data = response.json()
         except Exception as e:
-            print("API error:", e)
+            print("API error:", e, flush=True)
             continue
 
         weather = data.get("current_weather", {})
@@ -35,7 +42,8 @@ while True:
             "time": weather.get("time"),
         }
 
-        producer.send("weather", message)
-        print("Sent:", message)
+        producer.send(os.getenv("KAFKA_TOPIC", "weather"), message)
+        print("Sent:", message, flush=True)
 
+    print(f"Sleeping for 15 minutes...", flush=True)
     time.sleep(900)
