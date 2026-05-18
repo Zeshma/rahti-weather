@@ -52,6 +52,74 @@ oc get routes
 
 The web interface will be available at the route URL shown in `oc get routes`.
 
+### 5. Health Checks
+
+The application includes comprehensive health checks for all components:
+
+#### Health Check Endpoints
+
+- **Web Application**: `http://<route-url>/health`
+- **Producer**: `http://<producer-pod-ip>:8081/health`
+- **Consumer**: `http://<consumer-pod-ip>:8082/health`
+
+#### Kubernetes Probes
+
+All components have liveness and readiness probes configured:
+
+- **Liveness Probe**: Restarts unhealthy containers (30s initial delay, 10s interval)
+- **Readiness Probe**: Controls traffic routing (15s initial delay, 5s interval)
+
+#### Testing Health Checks
+
+```bash
+# Test web health check
+oc port-forward svc/weather-web 8080:8080
+curl http://localhost:8080/health
+
+# Test producer health check (port forward to a producer pod)
+PRODUCER_POD=$(oc get pods -l app=weather,component=producer -o jsonpath='{.items[0].metadata.name}')
+oc port-forward pod/$PRODUCER_POD 8081:8081
+curl http://localhost:8081/health
+
+# Test consumer health check
+CONSUMER_POD=$(oc get pods -l app=weather,component=consumer -o jsonpath='{.items[0].metadata.name}')
+oc port-forward pod/$CONSUMER_POD 8082:8082
+curl http://localhost:8082/health
+```
+
+#### Health Check Responses
+
+Healthy response:
+```json
+{
+  "status": "healthy",
+  "database": "connected",
+  "timestamp": "2026-05-18T14:01:47.340727"
+}
+```
+
+Unhealthy response (HTTP 500):
+```json
+{
+  "status": "unhealthy",
+  "database": "connection failed",
+  "timestamp": "2026-05-18T14:01:47.340727"
+}
+```
+
+### 6. Monitoring Health Checks
+
+```bash
+# Check probe status for a pod
+oc describe pod <pod-name> | grep -A 5 "Liveness\|Readiness"
+
+# View health check events
+oc get events --field-selector reason=Unhealthy
+
+# Check pod readiness
+oc get pods -l app=weather --field-selector=status.phase=Running
+```
+
 ## Configuration
 
 ### Environment Variables
@@ -90,7 +158,43 @@ oc scale deployment/weather-consumer --replicas=2
 
 ## Monitoring
 
-Consider adding monitoring by creating appropriate ServiceMonitors or using OpenShift's built-in monitoring.
+The application includes built-in health monitoring:
+
+### Health Check Monitoring
+
+```bash
+# Monitor health check failures
+oc get events --watch --field-selector reason=Unhealthy
+
+# Check probe status across all pods
+oc get pods -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.containerStatuses[0].ready}{"\n"}'
+
+# View detailed probe information
+oc describe pod <pod-name> | grep -A 10 -B 2 "Probe"
+```
+
+### Custom Monitoring
+
+Consider adding Prometheus monitoring by creating appropriate ServiceMonitors:
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: weather-monitor
+  labels:
+    app: weather
+spec:
+  selector:
+    matchLabels:
+      app: weather
+  endpoints:
+  - port: web
+    path: /health
+    interval: 30s
+```
+
+For advanced monitoring, you can also use OpenShift's built-in monitoring capabilities.
 
 ## Troubleshooting
 

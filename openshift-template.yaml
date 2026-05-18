@@ -46,20 +46,36 @@ objects:
           component: web
       spec:
         containers:
-        - name: web
-          image: "${IMAGE_REGISTRY}/${NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}"
-          ports:
-          - containerPort: 8080
-          envFrom:
-          - secretRef:
-              name: weather-db-secret
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "128Mi"
-            limits:
-              cpu: "500m"
-              memory: "512Mi"
+         - name: web
+           image: "${IMAGE_REGISTRY}/${NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}"
+           ports:
+           - containerPort: 8080
+           envFrom:
+           - secretRef:
+               name: weather-db-secret
+           livenessProbe:
+             httpGet:
+               path: /health
+               port: 8080
+             initialDelaySeconds: 30
+             periodSeconds: 10
+             timeoutSeconds: 5
+             failureThreshold: 3
+           readinessProbe:
+             httpGet:
+               path: /health
+               port: 8080
+             initialDelaySeconds: 15
+             periodSeconds: 5
+             timeoutSeconds: 3
+             failureThreshold: 3
+           resources:
+             requests:
+               cpu: "100m"
+               memory: "128Mi"
+             limits:
+               cpu: "500m"
+               memory: "512Mi"
 
 - apiVersion: v1
   kind: Service
@@ -107,19 +123,37 @@ objects:
           component: producer
       spec:
         containers:
-        - name: producer
-          image: "${IMAGE_REGISTRY}/${NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}"
-          command: ["python", "producer.py"]
-          envFrom:
-          - secretRef:
-              name: weather-db-secret
-          resources:
-            requests:
-              cpu: "50m"
-              memory: "64Mi"
-            limits:
-              cpu: "200m"
-              memory: "256Mi"
+         - name: producer
+           image: "${IMAGE_REGISTRY}/${NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}"
+           command: ["python", "producer.py"]
+           ports:
+           - containerPort: 8081
+           envFrom:
+           - secretRef:
+               name: weather-db-secret
+           livenessProbe:
+             httpGet:
+               path: /health
+               port: 8081
+             initialDelaySeconds: 30
+             periodSeconds: 10
+             timeoutSeconds: 5
+             failureThreshold: 3
+           readinessProbe:
+             httpGet:
+               path: /health
+               port: 8081
+             initialDelaySeconds: 15
+             periodSeconds: 5
+             timeoutSeconds: 3
+             failureThreshold: 3
+           resources:
+             requests:
+               cpu: "50m"
+               memory: "64Mi"
+             limits:
+               cpu: "200m"
+               memory: "256Mi"
 
 - apiVersion: apps/v1
   kind: Deployment
@@ -141,19 +175,37 @@ objects:
           component: consumer
       spec:
         containers:
-        - name: consumer
-          image: "${IMAGE_REGISTRY}/${NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}"
-          command: ["python", "consumer.py"]
-          envFrom:
-          - secretRef:
-              name: weather-db-secret
-          resources:
-            requests:
-              cpu: "50m"
-              memory: "64Mi"
-            limits:
-              cpu: "200m"
-              memory: "256Mi"
+         - name: consumer
+           image: "${IMAGE_REGISTRY}/${NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}"
+           command: ["python", "consumer.py"]
+           ports:
+           - containerPort: 8082
+           envFrom:
+           - secretRef:
+               name: weather-db-secret
+           livenessProbe:
+             httpGet:
+               path: /health
+               port: 8082
+             initialDelaySeconds: 30
+             periodSeconds: 10
+             timeoutSeconds: 5
+             failureThreshold: 3
+           readinessProbe:
+             httpGet:
+               path: /health
+               port: 8082
+             initialDelaySeconds: 15
+             periodSeconds: 5
+             timeoutSeconds: 3
+             failureThreshold: 3
+           resources:
+             requests:
+               cpu: "50m"
+               memory: "64Mi"
+             limits:
+               cpu: "200m"
+               memory: "256Mi"
 
 parameters:
 - name: IMAGE_REGISTRY

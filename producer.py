@@ -3,6 +3,42 @@ import json
 import requests
 import time
 import os
+import sys
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
+
+def check_kafka_health():
+    """Check if Kafka producer is healthy"""
+    try:
+        # Test Kafka connection by getting metadata
+        metadata = producer.metrics()
+        return {
+            "status": "healthy",
+            "kafka": "connected",
+            "metrics_count": len(metadata)
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "kafka": str(e)
+        }
+
+class HealthRequestHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/health':
+            health_status = check_kafka_health()
+            self.send_response(200 if health_status["status"] == "healthy" else 500)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(health_status).encode())
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+def start_health_server():
+    """Start HTTP server for health checks on port 8081"""
+    server = HTTPServer(('0.0.0.0', 8081), HealthRequestHandler)
+    server.serve_forever()
 
 # Configure Kafka producer with SASL authentication
 producer = KafkaProducer(
@@ -18,6 +54,11 @@ locations = [
     ("Oulu", 65.01, 25.47),
     ("Lapinaho", 65.89532, 28.30994),
 ]
+
+# Start health check server in background thread
+health_thread = threading.Thread(target=start_health_server, daemon=True)
+health_thread.start()
+print("Started health check server on port 8081", flush=True)
 
 while True:
     print(f"Producer loop started at {time.time()}", flush=True)

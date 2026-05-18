@@ -1,4 +1,4 @@
-from flask import Flask, render_template_string
+from flask import Flask, render_template_string, jsonify
 import psycopg2
 import os
 from datetime import datetime, timedelta
@@ -13,6 +13,40 @@ def get_connection():
         password=os.environ.get("DB_PASSWORD", "<db-password>"),
         port=os.environ.get("DB_PORT", "<db-port>")
     )
+
+@app.route("/health")
+def health_check():
+    try:
+        # Check database connectivity
+        conn = get_connection()
+        cur = conn.cursor()
+
+        # Simple query to test database
+        cur.execute("SELECT 1")
+        result = cur.fetchone()
+
+        cur.close()
+        conn.close()
+
+        if result == (1,):
+            return jsonify({
+                "status": "healthy",
+                "database": "connected",
+                "timestamp": datetime.now().isoformat()
+            }), 200
+        else:
+            return jsonify({
+                "status": "unhealthy",
+                "database": "unexpected_response",
+                "timestamp": datetime.now().isoformat()
+            }), 500
+
+    except Exception as e:
+        return jsonify({
+            "status": "unhealthy",
+            "database": str(e),
+            "timestamp": datetime.now().isoformat()
+        }), 500
 
 @app.route("/")
 def home():
