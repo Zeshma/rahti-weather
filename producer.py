@@ -56,7 +56,7 @@ locations = [
 ]
 
 # Start health check server in background thread
-health_thread = threading.Thread(target=start_health_server, daemon=True)
+health_thread = threading.Thread(target=start_health_server, daemon=False)
 health_thread.start()
 print("Started health check server on port 8081", flush=True)
 
