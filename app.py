@@ -1,18 +1,13 @@
 from flask import Flask, render_template_string, jsonify
 import psycopg2
-import os
 from datetime import datetime, timedelta
+
+import config
 
 app = Flask(__name__)
 
 def get_connection():
-    return psycopg2.connect(
-        host=os.environ.get("DB_HOST", "<db-host>"),
-        database=os.environ.get("DB_NAME", "<db-name>"),
-        user=os.environ.get("DB_USER", "<db-user>"),
-        password=os.environ.get("DB_PASSWORD", "<db-password>"),
-        port=os.environ.get("DB_PORT", "<db-port>")
-    )
+    return psycopg2.connect(**config.db_connection_kwargs())
 
 @app.route("/health")
 def health_check():
@@ -118,4 +113,4 @@ def home():
     )
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+    app.run(host="0.0.0.0", port=config.WEB_PORT)

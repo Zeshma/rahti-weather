@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rahti-weather
+  labels:
+    app: rahti-weather
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rahti-weather
+  template:
+    metadata:
+      labels:
+        app: rahti-weather
+    spec:
+      containers:
+      - name: rahti-weather
+        image: image-registry.openshift-image-registry.svc:5000/justtest/rahti-weather:latest
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 8081
+          name: producer
+        - containerPort: 8082
+          name: consumer
+        env:
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: "kafka:9092"
+        - name: COMPONENT
+          value: "web"
+        - name: KAFKA_DISABLED
+          value: "true"
+        - name: DB_HOST
+          value: "postgresql"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: "weatherdb"
+        - name: DB_USER
+          value: "weatheruser"
+        - name: DB_PASSWORD
+          value: "weatherpass"
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "200m"
+            memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rahti-weather
+  labels:
+    app: rahti-weather
+spec:
+  ports:
+  - port: 8080
+    name: http
+  - port: 8081
+    name: producer
+  - port: 8082
+    name: consumer
+  selector:
+    app: rahti-weather
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: rahti-weather
+spec:
+  to:
+    kind: Service
+    name: rahti-weather
+  port:
+    targetPort: 8080

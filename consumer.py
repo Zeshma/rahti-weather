@@ -6,6 +6,8 @@ import sys
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 
+import config
+
 def check_consumer_health():
     """Check if consumer is healthy"""
     try:
@@ -20,8 +22,12 @@ def check_consumer_health():
         # Test Kafka connection
         kafka_healthy = True
         try:
-            # Try to get some metadata from consumer
-            topics = list(consumer.topics())
+            # Only test Kafka if it's enabled and consumer exists
+            if kafka_enabled and 'consumer' in globals():
+                # Try to get some metadata from consumer
+                topics = list(consumer.topics())
+            else:
+                kafka_healthy = False
         except:
             kafka_healthy = False
 
@@ -57,27 +63,24 @@ class HealthRequestHandler(BaseHTTPRequestHandler):
 
 def start_health_server():
     """Start HTTP server for health checks on port 8082"""
-    server = HTTPServer(('0.0.0.0', 8082), HealthRequestHandler)
+    server = HTTPServer(('0.0.0.0', config.CONSUMER_HEALTH_PORT), HealthRequestHandler)
     server.serve_forever()
 
 def get_connection():
-    return psycopg2.connect(
-        host=os.environ.get("DB_HOST", "<db-host>"),
-        database=os.environ.get("DB_NAME", "<db-name>"),
-        user=os.environ.get("DB_USER", "<db-user>"),
-        password=os.environ.get("DB_PASSWORD", "<db-password>"),
-        port=os.environ.get("DB_PORT", "<db-port>")
-    )
+    return psycopg2.connect(**config.db_connection_kwargs())
 
 # Configure Kafka consumer with SASL authentication
-consumer = KafkaConsumer(
-    os.getenv("KAFKA_TOPIC", "weather"),
-    bootstrap_servers=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "<kafka-bootstrap-servers>"),
-    value_deserializer=lambda x: json.loads(x.decode("utf-8")),
-    auto_offset_reset="earliest",
-    enable_auto_commit=True,
-    group_id="weather-group-2"
-)
+try:
+    consumer = KafkaConsumer(
+        config.KAFKA_TOPIC,
+        **config.kafka_consumer_kwargs(
+            value_deserializer=lambda x: json.loads(x.decode("utf-8"))
+        )
+    )
+    kafka_enabled = True
+except Exception as e:
+    print(f"Kafka connection failed, running in direct mode: {e}", flush=True)
+    kafka_enabled = False
 
 # luo taulu kerran
 conn = get_connection()
@@ -102,32 +105,40 @@ health_thread.start()
 print("Started health check server on port 8082", flush=True)
 
 print("Database table created, starting Kafka consumer...", flush=True)
-print(f"Listening to topic: {os.getenv('KAFKA_TOPIC', 'weather')}", flush=True)
+print(f"Listening to topic: {config.KAFKA_TOPIC}", flush=True)
 
-# lue Kafkaa
-for msg in consumer:
-    data = msg.value
-    print(f"Received message: {data}", flush=True)
+# lue Kafkaa only if Kafka is enabled
+if not config.KAFKA_DISABLED and kafka_enabled:
+    for msg in consumer:
+        data = msg.value
+        print(f"Received message: {data}", flush=True)
 
-    try:
-        conn = get_connection()
-        cur = conn.cursor()
+        try:
+            conn = get_connection()
+            cur = conn.cursor()
 
-        cur.execute("""
-            INSERT INTO weather (location, temp, wind, time)
-            VALUES (%s, %s, %s, %s)
-        """, (
-            data["location"],
-            data["temp"],
-            data["wind"],
-            data["time"]
-        ))
+            cur.execute("""
+                INSERT INTO weather (location, temp, wind, time)
+                VALUES (%s, %s, %s, %s)
+            """, (
+                data["location"],
+                data["temp"],
+                data["wind"],
+                data["time"]
+            ))
 
-        conn.commit()
-        cur.close()
-        conn.close()
+            conn.commit()
+            cur.close()
+            conn.close()
 
-        print("Inserted:", data, flush=True)
+            print("Inserted:", data, flush=True)
 
-    except Exception as e:
-        print("DB error:", e, flush=True)
+        except Exception as e:
+            print("DB error:", e, flush=True)
+else:
+    print("Kafka disabled, consumer running in passive mode", flush=True)
+    # Keep the consumer running indefinitely when Kafka is disabled
+    import time
+    while True:
+        time.sleep(60)
+        print("Consumer in passive mode - Kafka disabled", flush=True)
