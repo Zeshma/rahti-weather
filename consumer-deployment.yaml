@@ -1,42 +1,46 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: rahti-weather
+  name: rahti-weather-consumer
   labels:
-    app: rahti-weather
+    app: rahti-weather-consumer
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: rahti-weather
+      app: rahti-weather-consumer
   template:
     metadata:
       labels:
-        app: rahti-weather
+        app: rahti-weather-consumer
     spec:
       containers:
-      - name: rahti-weather
+      - name: rahti-weather-consumer
         # Replace <namespace> with your OpenShift project name, or use the
         # external registry URL image-registry.apps.2.rahti.csc.fi/<namespace>/rahti-weather:latest
         image: image-registry.openshift-image-registry.svc:5000/<namespace>/rahti-weather:latest
         ports:
-        - containerPort: 8080
-          name: http
-        - containerPort: 8081
-          name: producer
         - containerPort: 8082
           name: consumer
         env:
+        - name: COMPONENT
+          value: "consumer"
         - name: KAFKA_BOOTSTRAP_SERVERS
           value: "kafka:9092"
-        - name: COMPONENT
-          value: "web"
         - name: KAFKA_DISABLED
           value: "false"
-        # Database credentials are read from the POSTGRESQL_* env vars set by
-        # the PostgreSQL image, or can be overridden via DB_* vars. Set these
-        # explicitly if your database uses different credentials:
-        #   oc set env deployment/rahti-weather \
+        # The Kafka deployment in kafka-deployment.yaml uses PLAINTEXT listeners
+        # (no SASL). If your Kafka uses SASL/SCRAM, set these accordingly:
+        #   KAFKA_SECURITY_PROTOCOL=SASL_PLAINTEXT
+        #   KAFKA_SASL_MECHANISM=SCRAM-SHA-256
+        #   KAFKA_USERNAME=<your-user>
+        #   KAFKA_PASSWORD=<your-password>
+        - name: KAFKA_SECURITY_PROTOCOL
+          value: "PLAINTEXT"
+        - name: KAFKA_SASL_MECHANISM
+          value: "PLAIN"
+        # Database credentials: must match the PostgreSQL deployment.
+        #   oc set env deployment/rahti-weather-consumer \
         #     DB_USER=<your-user> DB_PASSWORD=<your-password> DB_NAME=<your-db>
         - name: DB_HOST
           value: "postgresql"
@@ -49,31 +53,3 @@ spec:
           limits:
             cpu: "200m"
             memory: "512Mi"
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: rahti-weather
-  labels:
-    app: rahti-weather
-spec:
-  ports:
-  - port: 8080
-    name: http
-  - port: 8081
-    name: producer
-  - port: 8082
-    name: consumer
-  selector:
-    app: rahti-weather
----
-apiVersion: route.openshift.io/v1
-kind: Route
-metadata:
-  name: rahti-weather
-spec:
-  to:
-    kind: Service
-    name: rahti-weather
-  port:
-    targetPort: 8080

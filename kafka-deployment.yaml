@@ -16,7 +16,9 @@ spec:
     spec:
       containers:
       - name: kafka
-        image: image-registry.apps.2.rahti.csc.fi/justtest/kafka:4.3.1
+        # Replace <namespace> with your OpenShift project name. The image must
+        # be pushed to your project's registry first (see OPENSHIFT_README.md).
+        image: image-registry.apps.2.rahti.csc.fi/<namespace>/kafka:4.3.1
         ports:
         - containerPort: 9092
           name: kafka
@@ -31,8 +33,6 @@ spec:
           value: "PLAINTEXT://:9092,CONTROLLER://:9093"
         - name: KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP
           value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
-        - name: KAFKA_CFG_CONTROLLER_QUORUM_BOOTSTRAP_SERVERS
-          value: "PLAINTEXT://:9093"
         - name: KAFKA_CFG_CONTROLLER_LISTENER_NAMES
           value: "CONTROLLER"
         - name: KAFKA_CFG_ADVERTISED_LISTENERS
@@ -40,9 +40,13 @@ spec:
         - name: KAFKA_CFG_LOG_DIRS
           value: "/tmp/kraft-combined-logs"
         - name: KAFKA_CFG_CONTROLLER_QUORUM_VOTERS
-          value: "0@:9093"
+          value: "0@localhost:9093"
+        - name: KAFKA_INITIAL_CONTROLLERS
+          value: "0@localhost:9093"
         - name: KAFKA_KRAFT_CLUSTER_ID
           value: "L3V6Q~5vTQaM57WgqfTqLA"
+        - name: KAFKA_KRAFT_VERSION
+          value: "0"
         resources:
           requests:
             cpu: "200m"
