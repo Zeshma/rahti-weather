@@ -18,7 +18,7 @@ spec:
       - name: rahti-weather
         # Replace <namespace> with your OpenShift project name, or use the
         # external registry URL image-registry.apps.2.rahti.csc.fi/<namespace>/rahti-weather:latest
-        image: image-registry.openshift-image-registry.svc:5000/<namespace>/rahti-weather:latest
+        image: image-registry.openshift-image-registry.svc:5000/testproject-4/rahti-weather:latest
         ports:
         - containerPort: 8080
           name: http
@@ -33,6 +33,17 @@ spec:
           value: "web"
         - name: KAFKA_DISABLED
           value: "false"
+        # The Kafka deployment in kafka-deployment.yaml uses PLAINTEXT listeners
+        # (no SASL). Match it here so the producer can connect. If your Kafka
+        # uses SASL/SCRAM, override these accordingly:
+        #   KAFKA_SECURITY_PROTOCOL=SASL_PLAINTEXT
+        #   KAFKA_SASL_MECHANISM=SCRAM-SHA-256
+        #   KAFKA_USERNAME=<your-user>
+        #   KAFKA_PASSWORD=<your-password>
+        - name: KAFKA_SECURITY_PROTOCOL
+          value: "PLAINTEXT"
+        - name: KAFKA_SASL_MECHANISM
+          value: "PLAIN"
         # Database credentials are read from the POSTGRESQL_* env vars set by
         # the PostgreSQL image, or can be overridden via DB_* vars. Set these
         # explicitly if your database uses different credentials:

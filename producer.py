@@ -66,12 +66,28 @@ try:
         print("Kafka explicitly disabled via KAFKA_DISABLED=true", flush=True)
         kafka_enabled = False
     else:
-        producer = KafkaProducer(
-            **config.kafka_producer_kwargs(
-                value_serializer=lambda v: json.dumps(v).encode("utf-8")
-            )
-        )
-        print("Kafka producer initialized successfully", flush=True)
+        # Retry the bootstrap: Kafka may not be ready yet when the pod starts,
+        # and the default KafkaProducer timeout is short. Without a retry the
+        # producer falls back to direct-DB mode for the whole lifetime of the
+        # pod and never recovers.
+        max_attempts = 6
+        for attempt in range(1, max_attempts + 1):
+            try:
+                producer = KafkaProducer(
+                    **config.kafka_producer_kwargs(
+                        value_serializer=lambda v: json.dumps(v).encode("utf-8")
+                    )
+                )
+                print("Kafka producer initialized successfully", flush=True)
+                break
+            except Exception as e:
+                if attempt == max_attempts:
+                    raise
+                print(
+                    f"Kafka bootstrap attempt {attempt}/{max_attempts} failed: {e}",
+                    flush=True,
+                )
+                time.sleep(5)
 except Exception as e:
     print(f"Kafka connection failed, running in direct mode: {e}", flush=True)
     kafka_enabled = False

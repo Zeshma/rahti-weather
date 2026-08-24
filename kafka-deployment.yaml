@@ -18,7 +18,7 @@ spec:
       - name: kafka
         # Replace <namespace> with your OpenShift project name. The image must
         # be pushed to your project's registry first (see OPENSHIFT_README.md).
-        image: image-registry.apps.2.rahti.csc.fi/<namespace>/kafka:4.3.1
+        image: image-registry.apps.2.rahti.csc.fi/testproject-4/kafka:4.3.1
         ports:
         - containerPort: 9092
           name: kafka
