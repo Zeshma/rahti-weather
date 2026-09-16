@@ -1,4 +1,4 @@
-from flask import Flask, render_template_string, jsonify
+from flask import Flask, render_template_string, jsonify, abort
 import urllib.request
 import json
 import psycopg2
@@ -23,6 +23,8 @@ def fetch_health(url, timeout=3):
 @app.route("/status")
 def status_page():
     """Show the health of all components on a single page."""
+    if not config.STATUS_PAGE_ENABLED:
+        abort(404)
     components = [
         ("Web (this pod)", "http://localhost:8080/health"),
         ("Producer", "http://localhost:8081/health"),
@@ -189,9 +191,12 @@ def home():
             </ul>
         {% endfor %}
         <hr>
+        {% if status_page_enabled %}
         <p><a href="/status">System Status</a></p>
+        {% endif %}
         """,
-        data=data_by_location
+        data=data_by_location,
+        status_page_enabled=config.STATUS_PAGE_ENABLED
     )
 
 if __name__ == "__main__":

@@ -53,6 +53,9 @@ spec:
           value: "postgresql"
         - name: DB_PORT
           value: "5432"
+        # Status page (optional). Set to "false" to disable /status.
+        # - name: STATUS_PAGE_ENABLED
+        #   value: "true"
         livenessProbe:
           httpGet:
             path: /health

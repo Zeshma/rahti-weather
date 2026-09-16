@@ -103,6 +103,8 @@ oc import-image kafka:4.3.1 \
   --confirm
 ```
 
+The `oc import-image --confirm` command creates the image stream automatically if it does not exist yet. You can verify it with `oc get imagestream kafka`. If you ever need to create it manually first: `oc create imagestream kafka`.
+
 Then replace `<namespace>` in `kafka-deployment.yaml` with your project name (or use `oc apply` with the in-cluster registry URL and patch the image afterward).
 
 ### 2. Deploy Infrastructure (Kafka and PostgreSQL)
@@ -199,6 +201,8 @@ docker push image-registry.apps.2.rahti.csc.fi/${NAMESPACE}/rahti-weather:latest
 oc import-image rahti-weather:latest --from=image-registry.apps.2.rahti.csc.fi/${NAMESPACE}/rahti-weather:latest --confirm
 ```
 
+The `oc import-image --confirm` command creates the image stream automatically. Verify with `oc get imagestream rahti-weather`. If you ever need to create it manually first: `oc create imagestream rahti-weather`.
+
 #### Option C: Using OpenShift Build (Alternative)
 ```bash
 # Create a build configuration
@@ -276,6 +280,49 @@ cur.close(); conn.close()
 "
 ```
 
+### 9. Checking Health
+
+Use these `oc` commands from your terminal to check the health of all components.
+
+#### A. Check probe status (Kubernetes-level)
+
+```bash
+# Show pod readiness (readiness probe result)
+oc get pods
+
+# Show probe configuration for each deployment
+oc describe pod -l app=rahti-weather | grep -A3 "Liveness\|Readiness"
+oc describe pod -l app=rahti-weather-consumer | grep -A3 "Liveness\|Readiness"
+oc describe pod -l app=kafka | grep -A3 "Liveness\|Readiness"
+
+# Show recent probe failures and restarts
+oc get events --sort-by='.lastTimestamp' | grep -i "probe\|unhealthy\|killing"
+```
+
+#### B. Check health endpoints directly (from inside pods)
+
+```bash
+# Web (database connectivity)
+oc exec deployment/rahti-weather -- python3 -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8080/health').read().decode())"
+
+# Producer (Kafka producer status)
+oc exec deployment/rahti-weather -- python3 -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8081/health').read().decode())"
+
+# Consumer (Kafka consumer + database)
+oc exec deployment/rahti-weather-consumer -- python3 -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8082/health').read().decode())"
+```
+
+#### C. Check the status page (if enabled)
+
+```bash
+# From inside the pod
+oc exec deployment/rahti-weather -- python3 -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8080/status').read().decode()[:200])"
+
+# From your browser: visit <route-url>/status
+oc get route rahti-weather -o jsonpath='{.spec.host}{"\n"}'
+# Then open http://<that-url>/status in a browser
+```
+
 ## Application Architecture
 
 The Rahti Weather application consists of three main components:
@@ -332,6 +379,7 @@ The application reads configuration from environment variables (see `config.py` 
 
 **Application:**
 - `COMPONENT`: Which component to run: `web`, `producer`, or `consumer` (default: `web`)
+- `STATUS_PAGE_ENABLED`: Set to `false` to disable the `/status` page and hide its link on the home page (default: `true`)
 
 ### Database Setup
 
@@ -366,7 +414,9 @@ oc scale deployment/rahti-weather --replicas=2
 - Check pod logs: `oc logs <pod-name>`
 - Check events: `oc get events`
 - Check environment variables: `oc set env deployment/<deployment-name> --list`
+- Check image streams: `oc get imagestream`. If missing, recreate with `oc import-image <name>:<tag> --from=<source> --confirm` or `oc create imagestream <name>`
 - Port forward to test locally: `oc port-forward svc/rahti-weather 8080:8080`
+- Works with `curl` over HTTP but not in the browser? Check whether the browser is forcing HTTPS (Rahti routes often redirect HTTP to HTTPS) or caching an earlier error page. Try an incognito window, or hard-refresh / clear cache. Confirm the route with `oc get route rahti-weather`.
 
 ## Cleanup
 
