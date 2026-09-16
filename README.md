@@ -2,6 +2,7 @@
 
 ## Overview
 This guide explains how to deploy the Rahti Weather application on OpenShift. The application provides a complete weather monitoring pipeline that fetches data from Open-Meteo API, processes it through Kafka, stores it in PostgreSQL, and displays it via a web interface.
+
 This guide was done for Oulun ammattikorkeakoulu as part of Company-Oriented Product Development Project course.
 
 ## Prerequisites
