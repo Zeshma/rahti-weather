@@ -44,17 +44,29 @@ export KAFKA_BOOTSTRAP_SERVERS="kafka:9092"
 
 ### 1. Set Your Credentials
 
-The deployment YAMLs do not contain hardcoded credentials. Before applying them, decide on your database credentials and set them on the PostgreSQL deployment:
+The deployment YAMLs use placeholder values for credentials (`<your-user>`, `<your-password>`, `<your-db>`). You have two options:
+
+**Option A: Edit the YAMLs before applying** — replace the placeholders in `postgresql-deployment.yaml` with your chosen credentials:
 
 ```bash
-# Choose your own credentials
+# Edit postgresql-deployment.yaml and replace:
+#   <your-user>    → your database username
+#   <your-password> → your database password
+#   <your-db>      → your database name
+```
+
+**Option B: Apply first, then set via oc set env** — deploy the infrastructure (step 3), then set credentials:
+
+```bash
 oc set env deployment/postgresql \
   POSTGRESQL_USERNAME=<your-user> \
   POSTGRESQL_PASSWORD=<your-password> \
   POSTGRESQL_DATABASE=<your-db>
 ```
 
-The app and consumer deployments read database credentials from the same `DB_*` environment variables. Set them to match:
+> Note: if you use Option B, the PostgreSQL pod may crash-loop on first start with placeholder values. Set the credentials right after step 3, then roll out: `oc rollout restart deployment/postgresql`.
+
+The app and consumer deployments fall back to the `POSTGRESQL_*` env vars automatically (see `config.py`), so if you use the same credentials everywhere you do not need to set `DB_*` explicitly. If you want different credentials on the app/consumer, set them after step 5:
 
 ```bash
 oc set env deployment/rahti-weather \
@@ -64,11 +76,27 @@ oc set env deployment/rahti-weather-consumer \
   DB_USER=<your-user> DB_PASSWORD=<your-password> DB_NAME=<your-db>
 ```
 
-> Note: the YAML files use `<your-user>` / `<your-password>` / `<your-db>` placeholders. You can either edit the YAMLs before applying, or apply first and then use `oc set env` as shown above.
+### 2. Make the Kafka Image Available
 
-### 2. Deploy Infrastructure (Kafka and PostgreSQL)
+The `kafka-deployment.yaml` references `image-registry.apps.2.rahti.csc.fi/<namespace>/kafka:4.3.1`. CSC publishes a maintained Kafka image at `satama.csc.fi/library/kafka:4.3.1` (publicly pullable, no auth needed). Pull it from Satama and push it to your project's registry:
 
-First, make the Kafka image available in your project (see the "Kafka image" section above), then deploy Kafka and PostgreSQL:
+```bash
+NAMESPACE=$(oc project -q)
+podman pull satama.csc.fi/library/kafka:4.3.1
+podman tag satama.csc.fi/library/kafka:4.3.1 image-registry.apps.2.rahti.csc.fi/${NAMESPACE}/kafka:4.3.1
+podman push image-registry.apps.2.rahti.csc.fi/${NAMESPACE}/kafka:4.3.1
+
+# Import the image into OpenShift
+oc import-image kafka:4.3.1 \
+  --from=image-registry.apps.2.rahti.csc.fi/${NAMESPACE}/kafka:4.3.1 \
+  --confirm
+```
+
+Then replace `<namespace>` in `kafka-deployment.yaml` with your project name (or use `oc apply` with the in-cluster registry URL and patch the image afterward).
+
+### 3. Deploy Infrastructure (Kafka and PostgreSQL)
+
+Now deploy Kafka and PostgreSQL:
 
 ```bash
 # Deploy Kafka
@@ -82,7 +110,7 @@ oc wait --for=condition=ready pod -l app=kafka --timeout=300s
 oc wait --for=condition=ready pod -l app=postgresql --timeout=300s
 ```
 
-### 3. Build and Push Container Image
+### 4. Build and Push Container Image
 
 #### Option A: Using Podman (Recommended for Fedora/Linux)
 ```bash
@@ -131,14 +159,14 @@ oc new-build python:3.10-slim --name=rahti-weather --binary
 oc start-build rahti-weather --from-dir=. --follow
 ```
 
-### 4. Deploy the Application and Consumer
+### 5. Deploy the Application and Consumer
 
-The image references in `app-deployment.yaml` and `consumer-deployment.yaml` contain a `<namespace>` placeholder. Replace it with your project name before applying, or patch the image after deploying:
+The image references in `app-deployment.yaml`, `consumer-deployment.yaml`, and `kafka-deployment.yaml` contain a `<namespace>` placeholder. Replace it with your project name before applying, or patch the image after deploying:
 
 ```bash
-# Replace <namespace> with your project name in both files
+# Replace <namespace> with your project name in all three files
 NAMESPACE=$(oc project -q)
-sed -i "s/<namespace>/${NAMESPACE}/g" app-deployment.yaml consumer-deployment.yaml
+sed -i "s/<namespace>/${NAMESPACE}/g" app-deployment.yaml consumer-deployment.yaml kafka-deployment.yaml
 
 # Deploy the web application (includes producer)
 oc apply -f app-deployment.yaml
@@ -151,7 +179,7 @@ oc wait --for=condition=ready pod -l app=rahti-weather --timeout=300s
 oc wait --for=condition=ready pod -l app=rahti-weather-consumer --timeout=300s
 ```
 
-### 5. Verify Deployment
+### 6. Verify Deployment
 
 ```bash
 # Check pods are running
@@ -164,7 +192,7 @@ oc get svc
 oc get routes
 ```
 
-### 5. Access the Application
+### 7. Access the Application
 
 The web interface will be available at the route URL shown in `oc get routes`.
 
@@ -173,7 +201,7 @@ Find yours with:
 oc get route rahti-weather -o jsonpath='{.spec.host}{"\n"}'
 ```
 
-### 6. Verify Data Flow
+### 8. Verify Data Flow
 
 Once all components are running, verify the complete data flow:
 
@@ -270,23 +298,10 @@ The project deploys four components, each with its own YAML file:
 
 | File | Component | Description |
 | --- | --- | --- |
-| `kafka-deployment.yaml` | Kafka | Kafka 4.3.1 broker (KRaft mode, single node). Image from CSC's Satama registry: `satama.csc.fi/library/kafka:4.3.1`. See below for how to make it available in your project. |
+| `kafka-deployment.yaml` | Kafka | Kafka 4.3.1 broker (KRaft mode, single node). Image from CSC's Satama registry: `satama.csc.fi/library/kafka:4.3.1`. See step 2 above for how to make it available in your project. |
 | `postgresql-deployment.yaml` | PostgreSQL | Database for storing weather data. Uses `bitnamilegacy/postgresql:15.3.0`. |
 | `app-deployment.yaml` | Web + Producer | Flask web UI plus the producer that fetches weather data and publishes to Kafka. |
 | `consumer-deployment.yaml` | Consumer | Subscribes to Kafka and inserts messages into PostgreSQL. |
-
-### Kafka image
-
-The `kafka-deployment.yaml` references `image-registry.apps.2.rahti.csc.fi/<namespace>/kafka:4.3.1`. CSC publishes a maintained Kafka image at `satama.csc.fi/library/kafka:4.3.1` (publicly pullable, no auth needed). Before deploying, pull it from Satama and push it to your project's registry:
-
-```bash
-NAMESPACE=$(oc project -q)
-podman pull satama.csc.fi/library/kafka:4.3.1
-podman tag satama.csc.fi/library/kafka:4.3.1 image-registry.apps.2.rahti.csc.fi/${NAMESPACE}/kafka:4.3.1
-podman push image-registry.apps.2.rahti.csc.fi/${NAMESPACE}/kafka:4.3.1
-```
-
-Then replace `<namespace>` in `kafka-deployment.yaml` with your project name (or use `oc apply` with the in-cluster registry URL and patch the image afterward).
 
 ## Scaling
 

@@ -18,7 +18,7 @@ spec:
       - name: rahti-weather-consumer
         # Replace <namespace> with your OpenShift project name, or use the
         # external registry URL image-registry.apps.2.rahti.csc.fi/<namespace>/rahti-weather:latest
-        image: image-registry.openshift-image-registry.svc:5000/testproject-4/rahti-weather:latest
+        image: image-registry.openshift-image-registry.svc:5000/<namespace>/rahti-weather:latest
         ports:
         - containerPort: 8082
           name: consumer

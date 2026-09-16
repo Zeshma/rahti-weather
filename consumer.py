@@ -3,6 +3,7 @@ import json
 import psycopg2
 import os
 import sys
+import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 
@@ -71,13 +72,28 @@ def get_connection():
 
 # Configure Kafka consumer with SASL authentication
 try:
-    consumer = KafkaConsumer(
-        config.KAFKA_TOPIC,
-        **config.kafka_consumer_kwargs(
-            value_deserializer=lambda x: json.loads(x.decode("utf-8"))
-        )
-    )
-    kafka_enabled = True
+    # Retry the bootstrap: Kafka may not be ready yet when the pod starts.
+    # Without a retry the consumer falls back to passive mode for the whole
+    # lifetime of the pod and never recovers.
+    max_attempts = 6
+    for attempt in range(1, max_attempts + 1):
+        try:
+            consumer = KafkaConsumer(
+                config.KAFKA_TOPIC,
+                **config.kafka_consumer_kwargs(
+                    value_deserializer=lambda x: json.loads(x.decode("utf-8"))
+                )
+            )
+            kafka_enabled = True
+            break
+        except Exception as e:
+            if attempt == max_attempts:
+                raise
+            print(
+                f"Kafka bootstrap attempt {attempt}/{max_attempts} failed: {e}",
+                flush=True,
+            )
+            time.sleep(5)
 except Exception as e:
     print(f"Kafka connection failed, running in direct mode: {e}", flush=True)
     kafka_enabled = False

@@ -21,18 +21,19 @@ spec:
         - containerPort: 5432
           name: postgresql
         env:
-        # Set these with your own credentials before applying, e.g.:
+        # Replace the placeholder values below with your own credentials before
+        # applying, or set them after deploying with:
         #   oc set env deployment/postgresql \
         #     POSTGRESQL_USERNAME=<your-user> \
         #     POSTGRESQL_PASSWORD=<your-password> \
         #     POSTGRESQL_DATABASE=<your-db>
         # The app deployments must use matching DB_USER/DB_PASSWORD/DB_NAME values.
         - name: POSTGRESQL_USERNAME
-          value: "weatheruser"
+          value: "<your-user>"
         - name: POSTGRESQL_PASSWORD
-          value: "weatherpass"
+          value: "<your-password>"
         - name: POSTGRESQL_DATABASE
-          value: "weatherdb"
+          value: "<your-db>"
         - name: PGDATA
           value: "/var/lib/postgresql/data/pgdata"
         resources:

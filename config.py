@@ -4,16 +4,26 @@ All environment-variable lookups and their defaults live here. The three
 entry points (app.py, producer.py, consumer.py) import from this module
 instead of reading os.environ directly, so defaults stay in one place.
 
-Database credentials fall back to the POSTGRES_* names that the Bitnami
+Database credentials fall back to the POSTGRESQL_* names that the Bitnami
 PostgreSQL image sets, matching the original app.py behaviour.
 """
 
 import os
 
 
+# Map DB_* keys to the POSTGRESQL_* env var names that the Bitnami image sets.
+_POSTGRESQL_FALLBACK = {
+    "DB_HOST": "POSTGRESQL_HOST",
+    "DB_NAME": "POSTGRESQL_DATABASE",
+    "DB_USER": "POSTGRESQL_USERNAME",
+    "DB_PASSWORD": "POSTGRESQL_PASSWORD",
+    "DB_PORT": "POSTGRESQL_PORT",
+}
+
+
 def _db_env(key, default):
-    """Read DB_HOST etc., falling back to the POSTGRES_* equivalent."""
-    return os.environ.get(key, os.environ.get("POSTGRES_" + key[3:], default))
+    """Read DB_HOST etc., falling back to the POSTGRESQL_* equivalent."""
+    return os.environ.get(key, os.environ.get(_POSTGRESQL_FALLBACK.get(key, key), default))
 
 
 # --- Database ---------------------------------------------------------------
