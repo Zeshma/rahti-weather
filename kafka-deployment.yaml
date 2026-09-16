@@ -47,6 +47,20 @@ spec:
           value: "L3V6Q~5vTQaM57WgqfTqLA"
         - name: KAFKA_KRAFT_VERSION
           value: "0"
+        livenessProbe:
+          tcpSocket:
+            port: 9092
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          tcpSocket:
+            port: 9092
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
         resources:
           requests:
             cpu: "200m"

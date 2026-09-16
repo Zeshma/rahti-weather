@@ -40,47 +40,34 @@ export DB_PORT="5432"
 export KAFKA_BOOTSTRAP_SERVERS="kafka:9092"
 ```
 
+## Quick Setup for Testing
+
+If you just want to test the deployment quickly, you can fill in all placeholders with a single command. This replaces the `<namespace>` placeholder with your OpenShift project name and sets default test credentials in `postgresql-deployment.yaml`:
+
+```bash
+# Set your namespace in all deployment YAMLs
+NAMESPACE=$(oc project -q)
+sed -i "s/<namespace>/${NAMESPACE}/g" app-deployment.yaml consumer-deployment.yaml kafka-deployment.yaml
+
+# Set test credentials in postgresql-deployment.yaml
+sed -i "s/<your-user>/weatheruser/g; s/<your-password>/weatherpass/g; s/<your-db>/weatherdb/g" postgresql-deployment.yaml
+```
+
+You can change `weatheruser`, `weatherpass`, and `weatherdb` to whatever you like. After running these commands, skip step 3 below (credentials are already set) and continue from step 4.
+
+> Warning: these are plain-text test credentials. Do not use them in production. For production, use `oc set env` or OpenShift secrets instead of editing the YAMLs.
+
 ## Deployment Steps
 
-### 1. Set Your Credentials
+### 1. Make the Kafka Image Available
 
-The deployment YAMLs use placeholder values for credentials (`<your-user>`, `<your-password>`, `<your-db>`). You have two options:
+The `kafka-deployment.yaml` references `image-registry.apps.2.rahti.csc.fi/<namespace>/kafka:4.3.1`. CSC publishes a maintained Kafka image at `satama.csc.fi/library/kafka:4.3.1` (publicly pullable, no auth needed). You need to get this image into your project's registry. Choose one of the options below.
 
-**Option A: Edit the YAMLs before applying** — replace the placeholders in `postgresql-deployment.yaml` with your chosen credentials:
-
+#### Option A: Using Podman (Recommended for Fedora/Linux)
 ```bash
-# Edit postgresql-deployment.yaml and replace:
-#   <your-user>    → your database username
-#   <your-password> → your database password
-#   <your-db>      → your database name
-```
+# Login to OpenShift registry
+oc registry login
 
-**Option B: Apply first, then set via oc set env** — deploy the infrastructure (step 3), then set credentials:
-
-```bash
-oc set env deployment/postgresql \
-  POSTGRESQL_USERNAME=<your-user> \
-  POSTGRESQL_PASSWORD=<your-password> \
-  POSTGRESQL_DATABASE=<your-db>
-```
-
-> Note: if you use Option B, the PostgreSQL pod may crash-loop on first start with placeholder values. Set the credentials right after step 3, then roll out: `oc rollout restart deployment/postgresql`.
-
-The app and consumer deployments fall back to the `POSTGRESQL_*` env vars automatically (see `config.py`), so if you use the same credentials everywhere you do not need to set `DB_*` explicitly. If you want different credentials on the app/consumer, set them after step 5:
-
-```bash
-oc set env deployment/rahti-weather \
-  DB_USER=<your-user> DB_PASSWORD=<your-password> DB_NAME=<your-db>
-
-oc set env deployment/rahti-weather-consumer \
-  DB_USER=<your-user> DB_PASSWORD=<your-password> DB_NAME=<your-db>
-```
-
-### 2. Make the Kafka Image Available
-
-The `kafka-deployment.yaml` references `image-registry.apps.2.rahti.csc.fi/<namespace>/kafka:4.3.1`. CSC publishes a maintained Kafka image at `satama.csc.fi/library/kafka:4.3.1` (publicly pullable, no auth needed). Pull it from Satama and push it to your project's registry:
-
-```bash
 NAMESPACE=$(oc project -q)
 podman pull satama.csc.fi/library/kafka:4.3.1
 podman tag satama.csc.fi/library/kafka:4.3.1 image-registry.apps.2.rahti.csc.fi/${NAMESPACE}/kafka:4.3.1
@@ -92,9 +79,33 @@ oc import-image kafka:4.3.1 \
   --confirm
 ```
 
+#### Option B: Using Docker
+```bash
+# Login to OpenShift registry
+oc registry login
+
+NAMESPACE=$(oc project -q)
+docker pull satama.csc.fi/library/kafka:4.3.1
+docker tag satama.csc.fi/library/kafka:4.3.1 image-registry.apps.2.rahti.csc.fi/${NAMESPACE}/kafka:4.3.1
+docker push image-registry.apps.2.rahti.csc.fi/${NAMESPACE}/kafka:4.3.1
+
+# Import the image into OpenShift
+oc import-image kafka:4.3.1 \
+  --from=image-registry.apps.2.rahti.csc.fi/${NAMESPACE}/kafka:4.3.1 \
+  --confirm
+```
+
+#### Option C: Using oc import-image directly (no local container runtime needed)
+```bash
+# Import straight from the public Satama registry into your project
+oc import-image kafka:4.3.1 \
+  --from=satama.csc.fi/library/kafka:4.3.1 \
+  --confirm
+```
+
 Then replace `<namespace>` in `kafka-deployment.yaml` with your project name (or use `oc apply` with the in-cluster registry URL and patch the image afterward).
 
-### 3. Deploy Infrastructure (Kafka and PostgreSQL)
+### 2. Deploy Infrastructure (Kafka and PostgreSQL)
 
 Now deploy Kafka and PostgreSQL:
 
@@ -108,6 +119,44 @@ oc apply -f postgresql-deployment.yaml
 # Wait for pods to be ready
 oc wait --for=condition=ready pod -l app=kafka --timeout=300s
 oc wait --for=condition=ready pod -l app=postgresql --timeout=300s
+```
+
+### 3. Set Your Credentials
+
+The deployment YAMLs use placeholder values for credentials (`<your-user>`, `<your-password>`, `<your-db>`). You have two options:
+
+**Option A: Edit the YAMLs before applying** — replace the placeholders in `postgresql-deployment.yaml` with your chosen credentials, then redeploy:
+
+```bash
+# Edit postgresql-deployment.yaml and replace:
+#   <your-user>    → your database username
+#   <your-password> → your database password
+#   <your-db>      → your database name
+
+# Then apply the updated file
+oc apply -f postgresql-deployment.yaml
+oc rollout restart deployment/postgresql
+```
+
+**Option B: Set credentials via oc set env** — set them on the running PostgreSQL deployment:
+
+```bash
+oc set env deployment/postgresql \
+  POSTGRESQL_USERNAME=<your-user> \
+  POSTGRESQL_PASSWORD=<your-password> \
+  POSTGRESQL_DATABASE=<your-db>
+```
+
+> Note: the PostgreSQL pod may crash-loop on first start with placeholder values. Set the credentials right after deploying, then roll out: `oc rollout restart deployment/postgresql`.
+
+The app and consumer deployments fall back to the `POSTGRESQL_*` env vars automatically (see `config.py`), so if you use the same credentials everywhere you do not need to set `DB_*` explicitly. If you want different credentials on the app/consumer, set them after step 5:
+
+```bash
+oc set env deployment/rahti-weather \
+  DB_USER=<your-user> DB_PASSWORD=<your-password> DB_NAME=<your-db>
+
+oc set env deployment/rahti-weather-consumer \
+  DB_USER=<your-user> DB_PASSWORD=<your-password> DB_NAME=<your-db>
 ```
 
 ### 4. Build and Push Container Image

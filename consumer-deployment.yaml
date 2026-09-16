@@ -46,6 +46,22 @@ spec:
           value: "postgresql"
         - name: DB_PORT
           value: "5432"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8082
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8082
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
         resources:
           requests:
             cpu: "100m"
@@ -53,3 +69,16 @@ spec:
           limits:
             cpu: "200m"
             memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rahti-weather-consumer
+  labels:
+    app: rahti-weather-consumer
+spec:
+  ports:
+  - port: 8082
+    name: consumer
+  selector:
+    app: rahti-weather-consumer
