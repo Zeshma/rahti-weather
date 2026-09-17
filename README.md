@@ -351,7 +351,7 @@ The Rahti Weather application consists of three main components:
 ### 2. Producer
 - **Purpose**: Fetches weather data from Open-Meteo API and publishes to Kafka (or directly to DB if Kafka disabled)
 - **Locations**: Oulu (65.01, 25.47) and Lapinaho (65.89532, 28.30994)
-- **Frequency**: Every 15 minutes
+- **Frequency**: Every 15 minutes, at fixed minutes past the hour (UTC): 01, 16, 31, 46. Configurable via `POLL_MINUTES_UTC` in `config.py`.
 - **Port**: 8081 (health checks)
 - **Technology**: Python with requests library
 

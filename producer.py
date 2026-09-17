@@ -4,6 +4,7 @@ import requests
 import time
 import os
 import sys
+import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 
@@ -233,5 +234,20 @@ while True:
         # else:
         #     print("Kafka disabled, data inserted via direct DB thread", flush=True)
 
-    print(f"Sleeping for 15 minutes...", flush=True)
-    time.sleep(config.POLL_INTERVAL_SECONDS)
+    # Fixed-schedule sleep: poll at minutes 1, 16, 31, 46 past the hour
+    # (UTC, matching the pod clock). This keeps polls aligned to the clock
+    # instead of drifting from pod start time.
+    POLL_MINUTES = config.POLL_MINUTES_UTC
+    now = datetime.datetime.utcnow()
+    upcoming = [m for m in POLL_MINUTES if m > now.minute]
+    if upcoming:
+        next_min = upcoming[0]
+        next_time = now.replace(minute=next_min, second=0, microsecond=0)
+    else:
+        # Next poll is in the following hour
+        next_min = POLL_MINUTES[0]
+        next_time = (now.replace(minute=0, second=0, microsecond=0)
+                     + datetime.timedelta(hours=1, minutes=next_min))
+    sleep_seconds = (next_time - now).total_seconds()
+    print(f"Sleeping {sleep_seconds:.0f}s until {next_time:%H:%M} UTC...", flush=True)
+    time.sleep(sleep_seconds)

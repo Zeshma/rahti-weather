@@ -55,7 +55,11 @@ LOCATIONS = [
     ("Lapinaho", 65.89532, 28.30994),
 ]
 
-POLL_INTERVAL_SECONDS = 900  # 15 minutes
+POLL_INTERVAL_SECONDS = 900  # 15 minutes (used by direct-DB fallback, kept for reference)
+
+# Fixed poll schedule: minutes past the hour (UTC) at which the producer
+# polls Open-Meteo. Must be sorted ascending. Default: 01, 16, 31, 46.
+POLL_MINUTES_UTC = [1, 16, 31, 46]
 
 # --- Health-check ports -----------------------------------------------------
 WEB_PORT = 8080
