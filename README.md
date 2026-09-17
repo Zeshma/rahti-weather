@@ -127,7 +127,17 @@ oc wait --for=condition=ready pod -l app=postgresql --timeout=300s
 
 ### 3. Set Your Credentials
 
-The deployment YAMLs use placeholder values for credentials (`<your-user>`, `<your-password>`, `<your-db>`). You have two options:
+The deployment YAMLs use placeholder values for credentials (`<your-user>`, `<your-password>`, `<your-db>`). You have several options:
+
+**Quick: Fill test credentials with one command** — replace the placeholders in `postgresql-deployment.yaml` with default test values (same as the Quick Setup for Testing above):
+
+```bash
+sed -i "s/<your-user>/weatheruser/g; s/<your-password>/weatherpass/g; s/<your-db>/weatherdb/g" postgresql-deployment.yaml
+oc apply -f postgresql-deployment.yaml
+oc rollout restart deployment/postgresql
+```
+
+You can change `weatheruser`, `weatherpass`, and `weatherdb` to whatever you like. These are plain-text test credentials — do not use them in production.
 
 **Option A: Edit the YAMLs before applying** — replace the placeholders in `postgresql-deployment.yaml` with your chosen credentials, then redeploy:
 
