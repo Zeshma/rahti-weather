@@ -153,15 +153,7 @@ oc set env deployment/postgresql \
 
 > Note: the PostgreSQL pod may crash-loop on first start with placeholder values. Set the credentials right after deploying, then roll out: `oc rollout restart deployment/postgresql`.
 
-The app and consumer deployments fall back to the `POSTGRESQL_*` env vars automatically (see `config.py`), so if you use the same credentials everywhere you do not need to set `DB_*` explicitly. If you want different credentials on the app/consumer, set them after step 5:
-
-```bash
-oc set env deployment/rahti-weather \
-  DB_USER=<your-user> DB_PASSWORD=<your-password> DB_NAME=<your-db>
-
-oc set env deployment/rahti-weather-consumer \
-  DB_USER=<your-user> DB_PASSWORD=<your-password> DB_NAME=<your-db>
-```
+The app and consumer deployments fall back to the `POSTGRESQL_*` env vars automatically (see `config.py`), so if you use the same credentials everywhere you do not need to set `DB_*` explicitly. If you want different credentials on the app/consumer, set them after step 5 (the `rahti-weather` and `rahti-weather-consumer` deployments must exist first) — see the note at the end of step 5.
 
 ### 4. Build and Push Container Image
 
@@ -233,6 +225,18 @@ oc apply -f consumer-deployment.yaml
 oc wait --for=condition=ready pod -l app=rahti-weather --timeout=300s
 oc wait --for=condition=ready pod -l app=rahti-weather-consumer --timeout=300s
 ```
+
+> Note: if you want different DB credentials on the app/consumer than the
+> `POSTGRESQL_*` values set in step 3, set them now (the deployments exist
+> at this point):
+>
+> ```bash
+> oc set env deployment/rahti-weather \
+>   DB_USER=<your-user> DB_PASSWORD=<your-password> DB_NAME=<your-db>
+>
+> oc set env deployment/rahti-weather-consumer \
+>   DB_USER=<your-user> DB_PASSWORD=<your-password> DB_NAME=<your-db>
+> ```
 
 ### 6. Verify Deployment
 
