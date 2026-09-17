@@ -388,7 +388,7 @@ The application reads configuration from environment variables (see `config.py` 
 
 **Application:**
 - `COMPONENT`: Which component to run: `web`, `producer`, or `consumer` (default: `web`)
-- `STATUS_PAGE_ENABLED`: Set to `false` to disable the `/status` page and hide its link on the home page (default: `true`)
+- `STATUS_PAGE_ENABLED`: Set to `true` to enable the `/status` page and show its link on the home page (default: `false`)
 
 ### Database Setup
 

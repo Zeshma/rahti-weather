@@ -47,7 +47,7 @@ KAFKA_GROUP_ID = os.getenv("KAFKA_GROUP_ID", "weather-group")
 
 # --- Application behaviour --------------------------------------------------
 COMPONENT = os.getenv("COMPONENT", "web")
-STATUS_PAGE_ENABLED = os.getenv("STATUS_PAGE_ENABLED", "true").lower() == "true"
+STATUS_PAGE_ENABLED = os.getenv("STATUS_PAGE_ENABLED", "false").lower() == "true"
 
 # Locations polled by the producer: (name, latitude, longitude)
 LOCATIONS = [
