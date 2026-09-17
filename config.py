@@ -40,7 +40,9 @@ KAFKA_USERNAME = os.getenv("KAFKA_USERNAME", "user1")
 KAFKA_PASSWORD = os.getenv("KAFKA_PASSWORD", "")
 KAFKA_SASL_MECHANISM = os.getenv("KAFKA_SASL_MECHANISM", "SCRAM-SHA-256")
 KAFKA_SECURITY_PROTOCOL = os.getenv("KAFKA_SECURITY_PROTOCOL", "SASL_PLAINTEXT")
-KAFKA_DISABLED = os.getenv("KAFKA_DISABLED", "false").lower() == "true"
+# KAFKA_DISABLED is disabled in this Kafka-mandatory deployment. Uncomment to
+# re-enable the direct-DB fallback path (see producer.py / consumer.py).
+# KAFKA_DISABLED = os.getenv("KAFKA_DISABLED", "false").lower() == "true"
 KAFKA_GROUP_ID = os.getenv("KAFKA_GROUP_ID", "weather-group")
 
 # --- Application behaviour --------------------------------------------------

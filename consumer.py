@@ -23,12 +23,9 @@ def check_consumer_health():
         # Test Kafka connection
         kafka_healthy = True
         try:
-            # Only test Kafka if it's enabled and consumer exists
-            if kafka_enabled and 'consumer' in globals():
-                # Try to get some metadata from consumer
-                topics = list(consumer.topics())
-            else:
-                kafka_healthy = False
+            # consumer always exists: if Kafka failed to bootstrap the pod
+            # would have exited before the health server started.
+            topics = list(consumer.topics())
         except:
             kafka_healthy = False
 
@@ -84,7 +81,6 @@ try:
                     value_deserializer=lambda x: json.loads(x.decode("utf-8"))
                 )
             )
-            kafka_enabled = True
             break
         except Exception as e:
             if attempt == max_attempts:
@@ -95,8 +91,10 @@ try:
             )
             time.sleep(5)
 except Exception as e:
-    print(f"Kafka connection failed, running in direct mode: {e}", flush=True)
-    kafka_enabled = False
+    # Kafka is mandatory: do not fall back to passive mode. Re-raise so the
+    # pod exits and restarts, retrying against Kafka.
+    print(f"Kafka connection failed, exiting: {e}", flush=True)
+    raise
 
 # luo taulu kerran
 conn = get_connection()
@@ -123,38 +121,41 @@ print("Started health check server on port 8082", flush=True)
 print("Database table created, starting Kafka consumer...", flush=True)
 print(f"Listening to topic: {config.KAFKA_TOPIC}", flush=True)
 
-# lue Kafkaa only if Kafka is enabled
-if not config.KAFKA_DISABLED and kafka_enabled:
-    for msg in consumer:
-        data = msg.value
-        print(f"Received message: {data}", flush=True)
+# Kafka is mandatory: the consumer always runs. If Kafka failed to
+# bootstrap, the pod exited above before reaching here.
+for msg in consumer:
+    data = msg.value
+    print(f"Received message: {data}", flush=True)
 
-        try:
-            conn = get_connection()
-            cur = conn.cursor()
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
 
-            cur.execute("""
-                INSERT INTO weather (location, temp, wind, time)
-                VALUES (%s, %s, %s, %s)
-            """, (
-                data["location"],
-                data["temp"],
-                data["wind"],
-                data["time"]
-            ))
+        cur.execute("""
+            INSERT INTO weather (location, temp, wind, time)
+            VALUES (%s, %s, %s, %s)
+        """, (
+            data["location"],
+            data["temp"],
+            data["wind"],
+            data["time"]
+        ))
 
-            conn.commit()
-            cur.close()
-            conn.close()
+        conn.commit()
+        cur.close()
+        conn.close()
 
-            print("Inserted:", data, flush=True)
+        print("Inserted:", data, flush=True)
 
-        except Exception as e:
-            print("DB error:", e, flush=True)
-else:
-    print("Kafka disabled, consumer running in passive mode", flush=True)
-    # Keep the consumer running indefinitely when Kafka is disabled
-    import time
-    while True:
-        time.sleep(60)
-        print("Consumer in passive mode - Kafka disabled", flush=True)
+    except Exception as e:
+        print("DB error:", e, flush=True)
+
+# Passive-mode fallback (DISABLED). Kept commented for reference; to
+# re-enable, uncomment and restore the KAFKA_DISABLED guard above.
+# else:
+#     print("Kafka disabled, consumer running in passive mode", flush=True)
+#     # Keep the consumer running indefinitely when Kafka is disabled
+#     import time
+#     while True:
+#         time.sleep(60)
+#         print("Consumer in passive mode - Kafka disabled", flush=True)

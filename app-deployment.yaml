@@ -31,8 +31,10 @@ spec:
           value: "kafka:9092"
         - name: COMPONENT
           value: "web"
-        - name: KAFKA_DISABLED
-          value: "false"
+        # KAFKA_DISABLED is disabled in this Kafka-mandatory deployment.
+        # Uncomment to re-enable the direct-DB fallback path.
+        # - name: KAFKA_DISABLED
+        #   value: "false"
         # The Kafka deployment in kafka-deployment.yaml uses PLAINTEXT listeners
         # (no SASL). Match it here so the producer can connect. If your Kafka
         # uses SASL/SCRAM, override these accordingly:
