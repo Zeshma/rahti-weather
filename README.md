@@ -31,17 +31,6 @@ Prepare these values for your PostgreSQL database:
 Prepare these values for your Kafka instance:
 - `KAFKA_BOOTSTRAP_SERVERS` - Kafka bootstrap servers (e.g., "kafka:9092")
 
-### Example Configuration
-```bash
-# Example values (replace with your actual credentials)
-export DB_HOST="postgresql"
-export DB_NAME="weatherdb"
-export DB_USER="weatheruser"
-export DB_PASSWORD="weatherpass"
-export DB_PORT="5432"
-export KAFKA_BOOTSTRAP_SERVERS="kafka:9092"
-```
-
 ## Quick Setup for Testing
 
 If you just want to test the deployment quickly, you can fill in all placeholders with a single command. This replaces the `<namespace>` placeholder with your OpenShift project name and sets default test credentials in `postgresql-deployment.yaml`:
@@ -272,14 +261,23 @@ oc get route rahti-weather -o jsonpath='{.spec.host}{"\n"}'
 
 ### 8. Verify Data Flow
 
-Once all components are running, verify the complete data flow:
+Once all components are running, verify the complete data flow.
+
+The producer and consumer pods log a `GET /health` line on every probe (every ~10 s), which drowns out the actual data-flow messages. Filter the health-check noise out with `grep -v "GET /health"`, or grep for the specific signal strings.
 
 ```bash
-# Check producer logs (should show "Sent to Kafka")
-oc logs -l app=rahti-weather --tail=20
+# Producer: should show "Sent to Kafka" lines (one batch per 15-min poll).
+# --tail must be large enough to reach past the health-check spam.
+oc logs -l app=rahti-weather --tail=2000 | grep -v "GET /health" | tail -20
 
-# Check consumer logs (should show "Received message" and "Inserted")
-oc logs -l app=rahti-weather-consumer --tail=20
+# Or grep only the produce events:
+oc logs -l app=rahti-weather --tail=2000 | grep "Sent to Kafka" | tail -10
+
+# Consumer: should show "Received message" followed by "Inserted" pairs.
+oc logs -l app=rahti-weather-consumer --tail=2000 | grep -v "GET /health" | tail -20
+
+# Or grep only the consume/insert events:
+oc logs -l app=rahti-weather-consumer --tail=2000 | grep -E "Received message|Inserted" | tail -10
 
 # Check the web interface
 oc exec <rahti-weather-pod> -- python3 -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8080/').read().decode()[:500])"
@@ -295,6 +293,8 @@ for r in cur.fetchall():
 cur.close(); conn.close()
 "
 ```
+
+> Tip: the producer polls every 15 minutes, so a fresh deployment may take up to 15 minutes before the first `Sent to Kafka` line appears. The consumer prints `Received message` / `Inserted` as soon as messages arrive.
 
 ### 9. Checking Health
 
