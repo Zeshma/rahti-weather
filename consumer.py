@@ -67,6 +67,72 @@ def start_health_server():
 def get_connection():
     return psycopg2.connect(**config.db_connection_kwargs())
 
+def prune_weather_table():
+    """Delete the oldest rows if the weather table exceeds DB_MAX_SIZE_MB.
+
+    A development safety valve: the normal data flow inserts ~200 rows/day,
+    so the table should stay tiny. If something goes wrong (fast polling
+    left on, junk inserts), this keeps growth bounded. Rows are pruned by
+    id (SERIAL), which is the correct age order; the text 'time' column is
+    not reliable for ordering.
+    """
+    limit_bytes = config.DB_MAX_SIZE_MB * 1024 * 1024
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT pg_total_relation_size('weather')")
+    size_bytes = cur.fetchone()[0]
+
+    if size_bytes <= limit_bytes:
+        cur.close()
+        conn.close()
+        return
+
+    size_mb = size_bytes / (1024 * 1024)
+    deleted_total = 0
+
+    while True:
+        cur.execute("SELECT count(*) FROM weather")
+        count = cur.fetchone()[0]
+        to_delete = count // 2
+
+        if to_delete < 1:
+            # Table is empty or a single row and still over the limit
+            # (threshold below the empty-table floor): nothing more to
+            # remove, bail out instead of looping forever.
+            break
+
+        cur.execute("""
+            DELETE FROM weather WHERE id IN (
+                SELECT id FROM weather ORDER BY id ASC LIMIT %s
+            )
+        """, (to_delete,))
+        deleted_total += cur.rowcount
+        conn.commit()
+
+        cur.execute("SELECT pg_total_relation_size('weather')")
+        if cur.fetchone()[0] <= limit_bytes:
+            break
+
+    cur.close()
+    conn.close()
+
+    # VACUUM cannot run inside a transaction; use an autocommit connection
+    # so the freed space is immediately reusable and the on-disk size of
+    # the table stops growing.
+    vacuum_conn = psycopg2.connect(**config.db_connection_kwargs())
+    vacuum_conn.autocommit = True
+    vacuum_cur = vacuum_conn.cursor()
+    vacuum_cur.execute("VACUUM weather")
+    vacuum_cur.close()
+    vacuum_conn.close()
+
+    print(
+        f"Table cleanup: deleted {deleted_total} oldest rows "
+        f"(table was {size_mb:.1f} MB > limit {config.DB_MAX_SIZE_MB} MB)",
+        flush=True,
+    )
+
 # Configure Kafka consumer with SASL authentication
 try:
     # Retry the bootstrap: Kafka may not be ready yet when the pod starts.
@@ -146,6 +212,8 @@ for msg in consumer:
         conn.close()
 
         print("Inserted:", data, flush=True)
+
+        prune_weather_table()
 
     except Exception as e:
         print("DB error:", e, flush=True)

@@ -52,6 +52,7 @@ All configuration is optional — copy `.env.example` to `.env` and adjust. Valu
 | `WEB_PORT` | `8088` | Host port for the web UI (8080 is often already taken in dev environments) |
 | `STATUS_PAGE_ENABLED` | `false` | Set `true` to enable the `/status` page and its link on the home page |
 | `POLL_MINUTES_UTC` | `1,16,31,46` | Minutes past the hour (UTC) when the producer polls Open-Meteo |
+| `DB_MAX_SIZE_MB` | `256` | When the `weather` table exceeds this size (MB), the consumer deletes the oldest rows automatically |
 | `KAFKA_HEAP_OPTS` | `-Xmx512m -Xms256m` | Kafka JVM heap. Lower on a small VPS |
 
 After changing `.env`, re-create the affected services:
@@ -112,6 +113,8 @@ If `STATUS_PAGE_ENABLED=true`, the web UI also has a `/status` page showing the 
 ## Persistence
 
 PostgreSQL data lives in the `postgresql-data` named volume and survives `docker compose down` and VPS reboots. Kafka log directories are ephemeral (matching the OpenShift deployment) — the `weather` topic is auto-created on first produce, so no action is needed after a Kafka restart.
+
+As a safety valve, the consumer checks the size of the `weather` table after every insert: if it exceeds `DB_MAX_SIZE_MB` (default 256 MB), the oldest rows are deleted until the table is back under the limit, and the freed space is reclaimed with `VACUUM`. The normal data flow only inserts ~200 rows/day (~20 MB/year), so with sane settings the cleanup never triggers — it is there to keep the volume bounded if something starts inserting junk. Each cleanup is logged as a `Table cleanup:` line in `docker compose logs consumer`.
 
 ## Updating
 

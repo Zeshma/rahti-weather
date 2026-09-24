@@ -33,6 +33,10 @@ DB_USER = _db_env("DB_USER", "weatheruser")
 DB_PASSWORD = _db_env("DB_PASSWORD", "weatherpass")
 DB_PORT = _db_env("DB_PORT", "5432")
 
+# Auto-cleanup: when the weather table exceeds this size (MB), the consumer
+# deletes the oldest rows until it is back under the limit.
+DB_MAX_SIZE_MB = int(os.getenv("DB_MAX_SIZE_MB", "256"))
+
 # --- Kafka ------------------------------------------------------------------
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "weather")
