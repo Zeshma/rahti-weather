@@ -1,0 +1,115 @@
+# Docker Compose deployment of the rahti-weather application for a VPS.
+# Mirrors the OpenShift deployment YAMLs in this repo:
+#   - kafka-deployment.yaml     -> kafka service
+#   - postgresql-deployment.yaml -> postgresql service
+#   - app-deployment.yaml      -> web service (runs web UI + producer)
+#   - consumer-deployment.yaml -> consumer service
+#
+# Copy .env.example to .env to override credentials and behaviour, then run:
+#   docker compose up -d --build
+#
+# The web UI is then available at http://<VPS-IP>:8080 (override with WEB_PORT).
+
+services:
+  postgresql:
+    image: docker.io/bitnamilegacy/postgresql:15.3.0
+    environment:
+      POSTGRESQL_USERNAME: ${POSTGRESQL_USERNAME:-weatheruser}
+      POSTGRESQL_PASSWORD: ${POSTGRESQL_PASSWORD:-weatherpass}
+      POSTGRESQL_DATABASE: ${POSTGRESQL_DATABASE:-weatherdb}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgresql-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "/opt/bitnami/postgresql/bin/pg_isready", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    restart: unless-stopped
+
+  kafka:
+    image: satama.csc.fi/library/kafka:4.3.1
+    environment:
+      KAFKA_CFG_NODE_ID: "0"
+      KAFKA_CFG_PROCESS_ROLES: controller,broker
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CFG_LOG_DIRS: /tmp/kraft-combined-logs
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 0@localhost:9093
+      KAFKA_INITIAL_CONTROLLERS: 0@localhost:9093
+      KAFKA_KRAFT_CLUSTER_ID: L3V6Q~5vTQaM57WgqfFqLA
+      KAFKA_KRAFT_VERSION: "0"
+      # Kafka JVM heap. Lower these on a small VPS if needed.
+      KAFKA_HEAP_OPTS: ${KAFKA_HEAP_OPTS:--Xmx512m -Xms256m}
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/9092'"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    restart: unless-stopped
+
+  web:
+    # Web UI plus the producer (COMPONENT=web runs both, as in app-deployment.yaml)
+    build: .
+    image: rahti-weather:latest
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      COMPONENT: web
+      DB_HOST: postgresql
+      DB_PORT: "5432"
+      DB_NAME: ${POSTGRESQL_DATABASE:-weatherdb}
+      DB_USER: ${POSTGRESQL_USERNAME:-weatheruser}
+      DB_PASSWORD: ${POSTGRESQL_PASSWORD:-weatherpass}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_SECURITY_PROTOCOL: PLAINTEXT
+      KAFKA_SASL_MECHANISM: PLAIN
+      STATUS_PAGE_ENABLED: ${STATUS_PAGE_ENABLED:-false}
+      POLL_MINUTES_UTC: ${POLL_MINUTES_UTC:-1,16,31,46}
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    restart: unless-stopped
+
+  consumer:
+    build: .
+    image: rahti-weather:latest
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      web:
+        condition: service_started
+    environment:
+      COMPONENT: consumer
+      DB_HOST: postgresql
+      DB_PORT: "5432"
+      DB_NAME: ${POSTGRESQL_DATABASE:-weatherdb}
+      DB_USER: ${POSTGRESQL_USERNAME:-weatheruser}
+      DB_PASSWORD: ${POSTGRESQL_PASSWORD:-weatherpass}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_SECURITY_PROTOCOL: PLAINTEXT
+      KAFKA_SASL_MECHANISM: PLAIN
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8082/health', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  postgresql-data:
