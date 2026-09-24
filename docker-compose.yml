@@ -8,7 +8,7 @@
 # Copy .env.example to .env to override credentials and behaviour, then run:
 #   docker compose up -d --build
 #
-# The web UI is then available at http://<VPS-IP>:8080 (override with WEB_PORT).
+# The web UI is then available at http://<VPS-IP>:8088 (override with WEB_PORT).
 
 services:
   postgresql:
@@ -74,7 +74,7 @@ services:
       STATUS_PAGE_ENABLED: ${STATUS_PAGE_ENABLED:-false}
       POLL_MINUTES_UTC: ${POLL_MINUTES_UTC:-1,16,31,46}
     ports:
-      - "${WEB_PORT:-8080}:8080"
+      - "${WEB_PORT:-8088}:8080"
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=3)\""]
       interval: 10s

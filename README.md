@@ -16,7 +16,7 @@ The producer runs inside the web container (`COMPONENT=web` starts both, see `en
 
 | Service | Runs | Port |
 | --- | --- | --- |
-| `web` | Flask web UI plus the producer (built from this repo) | 8080 (published to host) |
+| `web` | Flask web UI plus the producer (built from this repo) | 8080 internal, published on host 8088 (default) |
 | `consumer` | Kafka consumer inserting into PostgreSQL (built from this repo) | 8082 (internal, health checks) |
 | `kafka` | Kafka 4.3.1 broker, KRaft mode, single node, PLAINTEXT | 9092 (internal) |
 | `postgresql` | PostgreSQL 15.3 (Bitnami image), data in a named volume | 5432 (internal) |
@@ -36,7 +36,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-The web UI is available at `http://localhost:8080` (on a VPS: `http://<VPS-IP>:8080`). Override the host port with `WEB_PORT` in `.env`.
+The web UI is available at `http://localhost:8088` (on a VPS: `http://<VPS-IP>:8088`). Override the host port with `WEB_PORT` in `.env`. The container itself always listens on 8080 internally — `WEB_PORT` only changes the published host port, so it can never conflict with anything on your machine.
 
 > `postgresql` and `kafka` must report healthy before `web` and `consumer` start (`depends_on` with `condition: service_healthy`), so the first start takes a minute or two.
 
@@ -49,7 +49,7 @@ All configuration is optional — copy `.env.example` to `.env` and adjust. Valu
 | `POSTGRESQL_USERNAME` | `weatheruser` | Database user (shared by postgresql, web and consumer) |
 | `POSTGRESQL_PASSWORD` | `weatherpass` | Database password. **Change this on any internet-facing VPS** |
 | `POSTGRESQL_DATABASE` | `weatherdb` | Database name |
-| `WEB_PORT` | `8080` | Host port for the web UI |
+| `WEB_PORT` | `8088` | Host port for the web UI (8080 is often already taken in dev environments) |
 | `STATUS_PAGE_ENABLED` | `false` | Set `true` to enable the `/status` page and its link on the home page |
 | `POLL_MINUTES_UTC` | `1,16,31,46` | Minutes past the hour (UTC) when the producer polls Open-Meteo |
 | `KAFKA_HEAP_OPTS` | `-Xmx512m -Xms256m` | Kafka JVM heap. Lower on a small VPS |
@@ -123,7 +123,7 @@ docker compose up -d --build web consumer
 
 ## Production Notes
 
-- The web UI is served plain HTTP on port 8080. For anything exposed to the internet, put a reverse proxy (Caddy, nginx, Traefik) in front for HTTPS, or restrict access with a firewall.
+- The web UI is served plain HTTP on the published host port (8088 by default). For anything exposed to the internet, put a reverse proxy (Caddy, nginx, Traefik) in front for HTTPS, or restrict access with a firewall.
 - Change `POSTGRESQL_PASSWORD` from the default. Credentials are set via `.env`, which is git-ignored — do not commit real credentials.
 - On a small VPS (1-2 GB RAM), lower `KAFKA_HEAP_OPTS` if Kafka struggles for memory; it is the largest consumer in the stack.
 
