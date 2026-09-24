@@ -58,8 +58,15 @@ LOCATIONS = [
 POLL_INTERVAL_SECONDS = 900  # 15 minutes (used by direct-DB fallback, kept for reference)
 
 # Fixed poll schedule: minutes past the hour (UTC) at which the producer
-# polls Open-Meteo. Must be sorted ascending. Default: 01, 16, 31, 46.
-POLL_MINUTES_UTC = [1, 16, 31, 46]
+# polls Open-Meteo. Must be a comma-separated list of integers, sorted
+# ascending. Default: 01, 16, 31, 46 (every 15 minutes, aligned to the clock).
+# For fast testing of the data flow, set e.g. POLL_MINUTES_UTC=0,1,2,...,59
+# (every minute). Note: Open-Meteo updates its current_weather data every
+# 15 minutes, so polling faster will show the data flowing through Kafka
+# and into the database more frequently, but the weather values themselves
+# will repeat until the API updates.
+_poll_minutes_str = os.getenv("POLL_MINUTES_UTC", "1,16,31,46")
+POLL_MINUTES_UTC = [int(m.strip()) for m in _poll_minutes_str.split(",")]
 
 # --- Health-check ports -----------------------------------------------------
 WEB_PORT = 8080

@@ -48,6 +48,28 @@ You can change `weatheruser`, `weatherpass`, and `weatherdb` to whatever you lik
 
 > Warning: these are plain-text test credentials. Do not use them in production. For production, use `oc set env` or OpenShift secrets instead of editing the YAMLs.
 
+### Fast Testing the Data Flow
+
+By default the producer polls Open-Meteo every 15 minutes (at minutes 1, 16, 31, 46 past the hour). To verify the full data flow (producer -> Kafka -> consumer -> database) without waiting 15 minutes for the first batch, you can set the producer to poll every minute:
+
+```bash
+# Set the producer to poll every minute (applies to the rahti-weather deployment,
+# which runs the producer alongside the web app)
+oc set env deployment/rahti-weather POLL_MINUTES_UTC=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59
+```
+
+This triggers a rolling restart of the web pod. After it's ready, the producer will fetch and send weather data every minute, so you'll see `Sent to Kafka` in the producer logs and `Received message` / `Inserted` in the consumer logs within a minute instead of up to 15.
+
+> Note: Open-Meteo updates its current-weather data every 15 minutes. Polling faster will show the data flowing through the pipeline more frequently, but the weather values (temperature, wind) will repeat until the API updates. This mode is for testing the data flow, not for getting fresher weather data.
+
+> Note: `POLL_MINUTES_UTC` is read by `config.py` at startup. If you deployed from an image built before this feature was added, the env var will have no effect — the producer will keep using the hardcoded 15-minute schedule. Rebuild the image (step 4) to include the updated `config.py`, then redeploy.
+
+To return to the default 15-minute schedule:
+
+```bash
+oc set env deployment/rahti-weather POLL_MINUTES_UTC=1,16,31,46
+```
+
 ## Deployment Steps
 
 ### 1. Make the Kafka Image Available
@@ -403,6 +425,7 @@ The application reads configuration from environment variables (see `config.py` 
 **Application:**
 - `COMPONENT`: Which component to run: `web`, `producer`, or `consumer` (default: `web`)
 - `STATUS_PAGE_ENABLED`: Set to `true` to enable the `/status` page and show its link on the home page (default: `false`)
+- `POLL_MINUTES_UTC`: Comma-separated list of minutes past the hour (UTC) at which the producer polls Open-Meteo (default: `1,16,31,46` — every 15 minutes, aligned to the clock). For fast testing of the data flow, set to every minute: `0,1,2,3,...,59`. Note: Open-Meteo updates its current-weather data every 15 minutes, so polling faster will show data flowing through Kafka and into the database more frequently, but the weather values themselves will repeat until the API updates.
 
 Enable or disable the status page at runtime with `oc set env` (applies to the `rahti-weather` web deployment):
 
