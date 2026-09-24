@@ -109,6 +109,13 @@ services:
       timeout: 5s
       retries: 6
       start_period: 30s
+    # app.py's status page fetches http://rahti-weather-consumer:8082/health
+    # (the OpenShift service name). Add it as a network alias so the app
+    # works unmodified; the compose service stays named "consumer".
+    networks:
+      default:
+        aliases:
+          - rahti-weather-consumer
     restart: unless-stopped
 
 volumes:
