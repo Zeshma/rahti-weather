@@ -6,12 +6,11 @@ This guide explains how to deploy the Rahti Weather application on OpenShift. Th
 This guide was done for Oulu University of Applied Sciences as part of Company-Oriented Product Development Project course.
 
 ## Prerequisites
-- OpenShift CLI (`oc`) installed and logged in
-- Access to an OpenShift project
-- **PostgreSQL database instance** (can be deployed on OpenShift or external)
-- **Kafka instance** (can be deployed on OpenShift or external)
-- **Your own credentials** for database and Kafka (do not use hardcoded values)
+- OpenShift CLI (`oc`) installed and logged in — see the [CSC Rahti CLI guide](https://docs.csc.fi/cloud/rahti/get-started/cli/) for installation instructions
+- Access to an OpenShift project — see the [CSC Rahti access guide](https://docs.csc.fi/cloud/rahti/get-started/access/) for how to get access and create a project
 - Podman or Docker for building container images (on Fedora/Linux)
+
+> This guide deploys PostgreSQL and Kafka as part of the project (steps 2 and 3). If you already have external instances you want to use, you can skip those steps and point the app at your existing instances instead.
 
 > ⚠️ **IMPORTANT**: This guide uses placeholder values for sensitive information. You **MUST** replace all placeholder values with your actual credentials before deployment.
 
