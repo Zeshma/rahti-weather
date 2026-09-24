@@ -36,6 +36,26 @@ spec:
           value: "<your-db>"
         - name: PGDATA
           value: "/var/lib/postgresql/data/pgdata"
+        readinessProbe:
+          exec:
+            command:
+            - /opt/bitnami/postgresql/bin/pg_isready
+            - -U
+            - postgres
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        livenessProbe:
+          exec:
+            command:
+            - /opt/bitnami/postgresql/bin/pg_isready
+            - -U
+            - postgres
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
         resources:
           requests:
             memory: "256Mi"

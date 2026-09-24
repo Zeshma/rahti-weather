@@ -16,9 +16,9 @@ spec:
     spec:
       containers:
       - name: rahti-weather
-        # Replace testproject-10 with your OpenShift project name, or use the
-        # external registry URL image-registry.apps.2.rahti.csc.fi/testproject-10/rahti-weather:latest
-        image: image-registry.openshift-image-registry.svc:5000/testproject-10/rahti-weather:latest
+        # Replace <namespace> with your OpenShift project name, or use the
+        # external registry URL image-registry.apps.2.rahti.csc.fi/<namespace>/rahti-weather:latest
+        image: image-registry.openshift-image-registry.svc:5000/<namespace>/rahti-weather:latest
         ports:
         - containerPort: 8080
           name: http
