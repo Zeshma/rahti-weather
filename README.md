@@ -310,6 +310,7 @@ oc get pods
 oc describe pod -l app=rahti-weather | grep -A3 "Liveness\|Readiness"
 oc describe pod -l app=rahti-weather-consumer | grep -A3 "Liveness\|Readiness"
 oc describe pod -l app=kafka | grep -A3 "Liveness\|Readiness"
+oc describe pod -l app=postgresql | grep -A3 "Liveness\|Readiness"
 
 # Show recent probe failures and restarts
 oc get events --sort-by='.lastTimestamp' | grep -i "probe\|unhealthy\|killing"
@@ -326,6 +327,9 @@ oc exec deployment/rahti-weather -- python3 -c "import urllib.request; print(url
 
 # Consumer (Kafka consumer + database)
 oc exec deployment/rahti-weather-consumer -- python3 -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8082/health').read().decode())"
+
+# PostgreSQL (uses an exec probe, not HTTP — run pg_isready directly)
+oc exec deployment/postgresql -- /opt/bitnami/postgresql/bin/pg_isready -U postgres
 ```
 
 #### C. Check the status page (if enabled)
@@ -400,6 +404,18 @@ The application reads configuration from environment variables (see `config.py` 
 - `COMPONENT`: Which component to run: `web`, `producer`, or `consumer` (default: `web`)
 - `STATUS_PAGE_ENABLED`: Set to `true` to enable the `/status` page and show its link on the home page (default: `false`)
 
+Enable or disable the status page at runtime with `oc set env` (applies to the `rahti-weather` web deployment):
+
+```bash
+# Enable the /status page
+oc set env deployment/rahti-weather STATUS_PAGE_ENABLED=true
+
+# Disable the /status page
+oc set env deployment/rahti-weather STATUS_PAGE_ENABLED=false
+```
+
+The change triggers a rolling restart of the web pod. Once it's ready, visit `https://<your-route-host>/status` (or use the link on the home page).
+
 ### Database Setup
 
 The application will automatically create the required `weather` table if it doesn't exist.
@@ -439,6 +455,8 @@ oc scale deployment/rahti-weather --replicas=2
 
 ## Cleanup
 
+> **Warning:** these commands permanently delete all deployed resources and all database data (PostgreSQL uses `emptyDir`, so data does not survive pod deletion). They only affect resources labeled with the app names below — they do not delete your OpenShift project. Run them only when you want to tear down the deployment completely.
+
 ```bash
 oc delete all -l app=rahti-weather
 oc delete all -l app=rahti-weather-consumer
@@ -446,3 +464,19 @@ oc delete all -l app=kafka
 oc delete all -l app=postgresql
 oc delete is rahti-weather
 oc delete is kafka
+```
+
+## Reset Project Files to Defaults
+
+If you used the Quick Setup for Testing (or manually replaced the placeholders with your own namespace and credentials), you can restore the project files to their original default state. This replaces your namespace with the `<namespace>` placeholder in all deployment YAMLs and restores the `<your-user>` / `<your-password>` / `<your-db>` placeholders in `postgresql-deployment.yaml`:
+
+```bash
+# Restore <namespace> placeholder in all deployment YAMLs
+sed -i "s|image-registry.openshift-image-registry.svc:5000/[^/]*/|image-registry.openshift-image-registry.svc:5000/<namespace>/|g" app-deployment.yaml consumer-deployment.yaml
+sed -i "s|image-registry.apps.2.rahti.csc.fi/[^/]*/|image-registry.apps.2.rahti.csc.fi/<namespace>/|g" kafka-deployment.yaml
+
+# Restore credential placeholders in postgresql-deployment.yaml
+sed -i "s/weatheruser/<your-user>/g; s/weatherpass/<your-password>/g; s/weatherdb/<your-db>/g" postgresql-deployment.yaml
+```
+
+After running these, the files are back to the state they ship in from the repository, ready for a fresh deploy.

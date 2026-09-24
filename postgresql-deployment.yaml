@@ -24,16 +24,16 @@ spec:
         # Replace the placeholder values below with your own credentials before
         # applying, or set them after deploying with:
         #   oc set env deployment/postgresql \
-        #     POSTGRESQL_USERNAME=<your-user> \
-        #     POSTGRESQL_PASSWORD=<your-password> \
-        #     POSTGRESQL_DATABASE=<your-db>
+        #     POSTGRESQL_USERNAME=weatheruser \
+        #     POSTGRESQL_PASSWORD=weatherpass \
+        #     POSTGRESQL_DATABASE=weatherdb
         # The app deployments must use matching DB_USER/DB_PASSWORD/DB_NAME values.
         - name: POSTGRESQL_USERNAME
-          value: "<your-user>"
+          value: "weatheruser"
         - name: POSTGRESQL_PASSWORD
-          value: "<your-password>"
+          value: "weatherpass"
         - name: POSTGRESQL_DATABASE
-          value: "<your-db>"
+          value: "weatherdb"
         - name: PGDATA
           value: "/var/lib/postgresql/data/pgdata"
         readinessProbe:
