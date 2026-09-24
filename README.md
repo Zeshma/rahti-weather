@@ -16,19 +16,21 @@ This guide was done for Oulu University of Applied Sciences as part of Company-O
 
 ## Preparation: Set Up Your Credentials
 
-Before deploying, you need to gather your database and Kafka connection details:
+Before deploying, decide on your database credentials. If you're using the PostgreSQL deployment included in this guide (step 2), you just need to pick a username, password, and database name — the defaults are `weatheruser`, `weatherpass`, `weatherdb`. If you're using an external database, gather its connection details:
 
 ### Database Configuration
 Prepare these values for your PostgreSQL database:
-- `DB_HOST` - Your PostgreSQL server hostname or IP
-- `DB_NAME` - Database name (e.g., "weatherdb")
-- `DB_USER` - Database username
-- `DB_PASSWORD` - Database password
-- `DB_PORT` - Database port (typically 5432)
+- `DB_HOST` - Your PostgreSQL server hostname or IP (default: `postgresql`)
+- `DB_NAME` - Database name (default: `weatherdb`)
+- `DB_USER` - Database username (default: `weatheruser`)
+- `DB_PASSWORD` - Database password (default: `weatherpass`)
+- `DB_PORT` - Database port (default: `5432`)
 
 ### Kafka Configuration
-Prepare these values for your Kafka instance:
-- `KAFKA_BOOTSTRAP_SERVERS` - Kafka bootstrap servers (e.g., "kafka:9092")
+The Kafka deployment in this guide uses PLAINTEXT listeners (no SASL, no credentials), so there's nothing to prepare. If you're using an external Kafka instance with SASL/SCRAM, gather:
+- `KAFKA_BOOTSTRAP_SERVERS` - Kafka bootstrap servers (e.g., `kafka:9092`)
+- `KAFKA_USERNAME` / `KAFKA_PASSWORD` - SASL credentials
+- `KAFKA_SECURITY_PROTOCOL` / `KAFKA_SASL_MECHANISM` - SASL settings
 
 ## Quick Setup for Testing
 
@@ -230,6 +232,8 @@ oc start-build rahti-weather --from-dir=. --follow
 
 The image references in `app-deployment.yaml`, `consumer-deployment.yaml`, and `kafka-deployment.yaml` contain a `<namespace>` placeholder. Replace it with your project name before applying, or patch the image after deploying:
 
+> If you used the Quick Setup for Testing above, the `<namespace>` placeholders are already replaced — skip the `sed` command and go straight to `oc apply`.
+
 ```bash
 # Replace <namespace> with your project name in all three files
 NAMESPACE=$(oc project -q)
@@ -374,7 +378,7 @@ The Rahti Weather application consists of three main components:
 - **Technology**: Flask web framework
 
 ### 2. Producer
-- **Purpose**: Fetches weather data from Open-Meteo API and publishes to Kafka (or directly to DB if Kafka disabled)
+- **Purpose**: Fetches weather data from Open-Meteo API and publishes to Kafka
 - **Locations**: Oulu (65.01, 25.47) and Lapinaho (65.89532, 28.30994)
 - **Frequency**: Every 15 minutes, at fixed minutes past the hour (UTC): 01, 16, 31, 46. Configurable via `POLL_MINUTES_UTC` in `config.py`.
 - **Port**: 8081 (health checks)
